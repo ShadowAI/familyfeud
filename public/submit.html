@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Write a question · Bajan Showdown</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html { background: var(--night); }
+    body {
+      min-height: 100vh;
+      color: var(--cream);
+      background:
+        repeating-conic-gradient(from -90deg at 50% -6%, rgba(255, 255, 255, 0.035) 0 5deg, transparent 5deg 10deg),
+        radial-gradient(130% 70% at 50% -10%, #0b38b8 0%, var(--ultra) 34%, var(--ultra-deep) 70%, var(--night) 100%);
+      background-color: var(--night);
+      padding: 20px 14px 60px;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    header { text-align: center; margin: 6px 0 18px; }
+    header a { text-decoration: none; display: inline-block; }
+    header .trident { width: 34px; height: 41px; fill: var(--gold); }
+    .brand { display: block; font-family: var(--display); color: var(--gold); font-size: clamp(26px, 7vw, 40px); line-height: 1; margin-top: 4px; text-shadow: 0 3px 0 #000; }
+    .lede { margin: 10px auto 0; max-width: 36ch; font-size: 1.05rem; }
+
+    .slots { display: grid; justify-items: center; gap: 8px; margin: 0 0 18px; }
+    .dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 100%; }
+    .dots span { width: 11px; height: 11px; border-radius: 50%; box-shadow: inset 0 0 0 2px rgba(255, 244, 214, 0.55); }
+    .dots span.taken { background: var(--gold); box-shadow: 0 0 6px rgba(255, 199, 38, 0.7); }
+    .slots p { margin: 0; font-weight: 700; text-align: center; }
+    .slots small { display: block; font-weight: 400; opacity: 0.8; }
+
+    /* the survey card */
+    .card {
+      position: relative;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 6px 6px 18px 18px;
+      padding: 26px clamp(16px, 5vw, 32px) 28px;
+      box-shadow: 0 0 0 4px var(--gold), 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 10px;
+      border-radius: 6px 6px 0 0;
+      background: repeating-linear-gradient(90deg, var(--ultra) 0 33.33%, var(--gold) 33.33% 66.66%, var(--ultra) 66.66% 100%);
+    }
+    .card h2 { font-family: var(--display); font-weight: 400; color: var(--ultra); font-size: 1.25rem; margin: 26px 0 6px; }
+    .card h2:first-of-type { margin-top: 8px; }
+    .help { margin: 0 0 12px; color: #3c4a6b; font-size: 0.97rem; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { display: grid; gap: 5px; font-weight: 700; font-size: 0.95rem; }
+    .field input, .field textarea, .ans-row input {
+      width: 100%;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 2px solid #b8c3e0;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      font: 400 1rem var(--text);
+    }
+    .field textarea { min-height: 84px; resize: vertical; line-height: 1.4; }
+    input:focus, textarea:focus { outline: none; border-color: var(--ultra) !important; box-shadow: 0 0 0 3px rgba(0, 38, 127, 0.18); }
+    .count { font-weight: 400; font-size: 0.85rem; color: #5a6684; justify-self: end; margin-top: -2px; }
+    .invalid { border-color: #c0141c !important; background: #fff5f5 !important; }
+
+    .ans-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: rank; }
+    .ans-row { display: grid; grid-template-columns: 34px 1fr 76px 36px; gap: 8px; align-items: center; }
+    .ans-row .rank {
+      display: grid; place-items: center;
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--ultra); color: var(--gold);
+      font-family: var(--display); font-size: 1.05rem;
+    }
+    .ans-row input.pts { text-align: center; font-weight: 700; padding: 10px 6px; }
+    .ans-row .rm {
+      width: 36px; height: 36px; border: 0; border-radius: 8px;
+      background: transparent; color: #6a7594; font-size: 1.4rem; line-height: 1; cursor: pointer;
+    }
+    .ans-row .rm:hover { background: #eef1fa; color: #c0141c; }
+    .ans-row .rm:disabled { visibility: hidden; }
+    .ans-head { display: grid; grid-template-columns: 34px 1fr 76px 36px; gap: 8px; font-size: 0.82rem; color: #5a6684; margin-bottom: 4px; }
+    .ans-head span:nth-child(3) { text-align: center; }
+    .add { margin-top: 10px; color: var(--ultra); }
+
+    .tally { margin-top: 16px; }
+    .tally-line { display: flex; justify-content: space-between; font-weight: 700; font-size: 0.95rem; }
+    .bar { height: 12px; margin-top: 6px; border-radius: 999px; background: #e3e8f5; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0; background: var(--ultra); border-radius: inherit; transition: width 0.2s; }
+    .tally.over .bar i { background: #c0141c; }
+    .tally.over .tally-line { color: #c0141c; }
+
+    .preview { margin-top: 22px; padding: 14px; border-radius: 14px; background: var(--night); }
+    .preview p { margin: 0 0 8px; color: var(--gold-pale); font-size: 0.85rem; }
+    .pv-q { color: #fff !important; font-weight: 700; font-size: 1rem !important; }
+    .pv { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 6px; }
+    .pv div {
+      display: flex; justify-content: space-between; align-items: center; gap: 6px;
+      min-height: 34px; padding-left: 10px; border-radius: 6px; overflow: hidden;
+      background: linear-gradient(180deg, #3a72ff, #1546c4 55%, #0b3299);
+      box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--gold);
+      color: #fff; font-family: var(--display); font-size: 0.8rem; line-height: 1.05;
+    }
+    .pv div b { font-weight: 400; align-self: stretch; display: grid; place-items: center; min-width: 34px; background: var(--gold); color: #000; box-shadow: inset 2px 0 0 #000; }
+    .pv div.blank { background: #000d3a; box-shadow: inset 0 0 0 2px #000; }
+
+    .errors { margin: 18px 0 0; padding: 12px 14px; border-radius: 10px; background: #fff0f0; color: #a3121a; font-weight: 700; }
+    .errors:empty { display: none; }
+    .submit-row { margin-top: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .submit-row .btn { flex: 1 1 auto; }
+    .saved { font-size: 0.85rem; color: #5a6684; }
+
+    .ticket { text-align: center; padding: 34px 20px 30px; }
+    .ticket .big { font-family: var(--display); color: var(--ultra); font-size: clamp(40px, 12vw, 64px); line-height: 1; margin: 8px 0 12px; }
+    .ticket p { margin: 0 auto 10px; max-width: 34ch; }
+    .ticket .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+    .ticket .btn-ghost { color: var(--ultra); }
+
+    .closed { text-align: center; padding: 30px 18px; }
+    .closed h2 { margin-top: 6px !important; }
+    .foot { text-align: center; margin-top: 18px; font-size: 0.95rem; }
+
+    @media (max-width: 420px) {
+      .row2 { grid-template-columns: 1fr; }
+      .ans-row, .ans-head { grid-template-columns: 30px 1fr 64px 30px; gap: 6px; }
+      .ans-row .rank { width: 30px; height: 30px; }
+      .pv { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
+      .pv div.blank { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="trident" viewBox="0 0 100 120">
+      <path d="M50 2 L60 24 L54 24 L54 62 L46 62 L46 24 L40 24 Z"/>
+      <path d="M14 10 L24 30 L19 30 C19 50 30 60 46 62 L46 70 C26 68 11 55 11 30 L5 30 Z"/>
+      <path d="M86 10 L95 30 L89 30 C89 55 74 68 54 70 L54 62 C70 60 81 50 81 30 L76 30 Z"/>
+      <path d="M46 70 L54 70 L54 104 L46 112 Z"/>
+      <rect x="35" y="74" width="30" height="6" rx="1"/>
+    </symbol>
+  </svg>
+
+  <div class="wrap">
+    <header>
+      <a href="/"><svg class="trident" aria-hidden="true"><use href="#trident"/></svg><span class="brand" id="brand">Bajan Showdown</span></a>
+      <p class="lede">Write a survey question about Barbados for the class gameshow.</p>
+    </header>
+
+    <section class="slots" aria-live="polite">
+      <div class="dots" id="dots" aria-hidden="true"></div>
+      <p id="slot-text">Checking the slots…</p>
+    </section>
+
+    <form class="card" id="form" novalidate hidden>
+      <h2>About you</h2>
+      <div class="row2">
+        <label class="field">Your name
+          <input id="name" name="name" autocomplete="name" maxlength="40" required>
+        </label>
+        <label class="field">Form class
+          <input id="formClass" name="formClass" maxlength="12" placeholder="e.g. 3B" required>
+        </label>
+      </div>
+      <label class="field" id="code-field" hidden style="margin-top:12px">Class code
+        <input id="code" name="code" maxlength="20" autocomplete="off" placeholder="Your teacher will give you this">
+      </label>
+
+      <h2>Your question</h2>
+      <p class="help">Start with “Name…” so lots of different answers could be right.</p>
+      <label class="field">
+        <span class="visually-hidden">Survey question</span>
+        <textarea id="question" maxlength="140" placeholder="Name something you'd buy at Oistins Fish Fry" required></textarea>
+        <span class="count" id="q-count">0 / 140</span>
+      </label>
+
+      <h2>Top answers</h2>
+      <p class="help">Imagine asking 100 Bajans. Points are how many of them would give that answer, so all the points together can't go over 100. Add 4 to 8 answers and keep each one short.</p>
+      <div class="ans-head" aria-hidden="true"><span></span><span>Answer</span><span>Points</span><span></span></div>
+      <ol class="ans-list" id="answers"></ol>
+      <button class="btn btn-ghost btn-small add" id="add" type="button">Add another answer</button>
+
+      <div class="tally" id="tally">
+        <div class="tally-line"><span>Points used</span><span id="total">0 of 100</span></div>
+        <div class="bar"><i id="bar"></i></div>
+      </div>
+
+      <div class="preview" id="preview" aria-hidden="true">
+        <p>How it'll look on the board, biggest answer first</p>
+        <p class="pv-q" id="pv-q"></p>
+        <div class="pv" id="pv"></div>
+      </div>
+
+      <div class="errors" id="errors" role="alert"></div>
+      <div class="submit-row">
+        <button class="btn btn-big" id="go" type="submit">Claim my slot</button>
+        <span class="saved" id="saved"></span>
+      </div>
+    </form>
+
+    <section class="card ticket" id="done" hidden>
+      <p>You got it.</p>
+      <div class="big" id="done-slot">Slot 1</div>
+      <p>Your question is saved. Your teacher will check it before it goes on the board, and they may tidy up the wording.</p>
+      <div class="btns">
+        <a class="btn" href="/">Back to the gameshow</a>
+        <button class="btn btn-ghost" id="another" type="button">Another student's turn</button>
+      </div>
+    </section>
+
+    <section class="card closed" id="closed" hidden>
+      <h2 id="closed-title">Question writing is closed</h2>
+      <p class="help" id="closed-text">Your teacher hasn't opened it yet. Check back when they tell you to.</p>
+      <a class="btn" href="/">Back to the gameshow</a>
+    </section>
+
+    <p class="foot"><a href="/">Back to the gameshow</a></p>
+  </div>
+
+  <script>
+  (() => {
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const DRAFT = "bs-draft-v1";
+    const MIN = 4, MAX = 8;
+    let status = null;
+
+    const ls = {
+      get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+      set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+      del(k) { try { localStorage.removeItem(k); } catch {} },
+    };
+
+    // ---------- slots ----------
+    async function loadStatus() {
+      try {
+        const r = await fetch("/api/status", { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        status = await r.json();
+      } catch {
+        $("#slot-text").textContent = "The question bank can't be reached right now. Check your internet connection, then refresh.";
+        return;
+      }
+      document.title = `Write a question · ${status.title}`;
+      $("#brand").textContent = status.title;
+      const dots = $("#dots");
+      dots.textContent = "";
+      const taken = new Set(status.taken);
+      for (let i = 1; i <= status.slotCount; i++) {
+        const d = document.createElement("span");
+        if (taken.has(i)) d.className = "taken";
+        dots.append(d);
+      }
+      const t = $("#slot-text");
+      t.textContent = status.left === 1 ? "1 slot left" : `${status.left} of ${status.slotCount} slots left`;
+      const sm = document.createElement("small");
+      sm.textContent = "First come, first served. One question each.";
+      t.append(sm);
+      $("#code-field").hidden = !status.needsCode;
+
+      const showingDone = !$("#done").hidden;
+      if (showingDone) return;
+      if (!status.open || status.left === 0) {
+        $("#form").hidden = true;
+        $("#closed").hidden = false;
+        $("#closed-title").textContent = status.open ? "All the slots are taken" : "Question writing is closed";
+        $("#closed-text").textContent = status.open
+          ? "Every slot has a question. If a slot frees up, it'll show here, so ask your teacher."
+          : "Your teacher hasn't opened it yet. Check back when they tell you to.";
+      } else {
+        $("#closed").hidden = true;
+        $("#form").hidden = false;
+      }
+    }
+
+    // ---------- answers ----------
+    const list = $("#answers");
+    function addRow(text = "", points = "") {
+      if (list.children.length >= MAX) return;
+      const li = document.createElement("li");
+      li.className = "ans-row";
+      li.innerHTML = `<span class="rank"></span>
+        <input class="txt" maxlength="32" aria-label="Answer">
+        <input class="pts" type="number" inputmode="numeric" min="1" max="99" aria-label="Points">
+        <button class="rm" type="button" aria-label="Remove this answer">×</button>`;
+      $(".txt", li).value = text;
+      $(".pts", li).value = points;
+      list.append(li);
+      renumber();
+    }
+    function renumber() {
+      $$(".ans-row", list).forEach((li, i) => {
+        $(".rank", li).textContent = i + 1;
+        $(".txt", li).setAttribute("aria-label", `Answer ${i + 1}`);
+        $(".pts", li).setAttribute("aria-label", `Points for answer ${i + 1}`);
+        $(".rm", li).disabled = list.children.length <= MIN;
+      });
+      $("#add").hidden = list.children.length >= MAX;
+    }
+    list.addEventListener("click", (e) => {
+      const rm = e.target.closest(".rm");
+      if (!rm) return;
+      rm.closest("li").remove();
+      renumber();
+      update();
+    });
+    $("#add").addEventListener("click", () => {
+      addRow();
+      $(".ans-row:last-child .txt", list).focus();
+      update();
+    });
+
+    function readAnswers() {
+      return $$(".ans-row", list)
+        .map((li) => ({ text: $(".txt", li).value.replace(/\s+/g, " ").trim(), points: Number($(".pts", li).value) }))
+        .filter((a) => a.text || a.points);
+    }
+
+    // ---------- live tally, preview, draft ----------
+    let saveTimer;
+    function update() {
+      const q = $("#question").value;
+      $("#q-count").textContent = `${q.length} / 140`;
+      const answers = readAnswers();
+      const total = answers.reduce((t, a) => t + (Number.isFinite(a.points) ? a.points : 0), 0);
+      $("#total").textContent = `${total} of 100`;
+      $("#bar").style.width = Math.min(100, total) + "%";
+      $("#tally").classList.toggle("over", total > 100);
+
+      $("#pv-q").textContent = q.trim() || "Your question";
+      const sorted = answers.filter((a) => a.text).sort((a, b) => (b.points || 0) - (a.points || 0));
+      const pv = $("#pv");
+      pv.textContent = "";
+      // the grid fills column by column like the real board: 1–4 left, 5–8 right
+      Array.from({ length: 8 }, (_, i) => sorted[i]).forEach((a) => {
+        const d = document.createElement("div");
+        if (a) {
+          const s = document.createElement("span");
+          s.textContent = a.text;
+          const b = document.createElement("b");
+          b.textContent = a.points || "?";
+          d.append(s, b);
+        } else d.className = "blank";
+        pv.append(d);
+      });
+
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        const ok = ls.set(DRAFT, {
+          name: $("#name").value, formClass: $("#formClass").value, question: q,
+          answers: $$(".ans-row", list).map((li) => ({ text: $(".txt", li).value, points: $(".pts", li).value })),
+        });
+        $("#saved").textContent = ok ? "Draft saved on this device" : "";
+      }, 500);
+    }
+    $("#form").addEventListener("input", (e) => {
+      e.target.classList.remove("invalid");
+      if ($("#errors").textContent) $("#errors").textContent = "";
+      update();
+    });
+
+    // ---------- checks before sending (the server checks again) ----------
+    function check() {
+      const errs = [];
+      const bad = (el) => el.classList.add("invalid");
+      const name = $("#name"), fc = $("#formClass"), q = $("#question"), code = $("#code");
+      if (name.value.trim().length < 2) { errs.push("Type your name."); bad(name); }
+      if (!fc.value.trim()) { errs.push("Type your form class."); bad(fc); }
+      if (status && status.needsCode && !code.value.trim()) { errs.push("Type the class code from your teacher."); bad(code); }
+      if (q.value.trim().length < 8) { errs.push("Write your survey question."); bad(q); }
+
+      const rows = $$(".ans-row", list);
+      let filled = 0, total = 0;
+      const seen = new Set();
+      rows.forEach((li) => {
+        const t = $(".txt", li), p = $(".pts", li);
+        const text = t.value.trim(), pts = Number(p.value);
+        if (!text && !p.value) return;
+        filled++;
+        if (!text) { bad(t); errs.push(`Answer ${$(".rank", li).textContent} has points but no answer.`); }
+        if (!Number.isInteger(pts) || pts < 1 || pts > 99) { bad(p); errs.push(`Give answer ${$(".rank", li).textContent} a whole number of points from 1 to 99.`); }
+        else total += pts;
+        const key = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (key && seen.has(key)) { bad(t); errs.push(`“${text}” is in the list twice.`); }
+        seen.add(key);
+      });
+      if (filled < MIN) errs.push(`Add at least ${MIN} answers.`);
+      if (total > 100) errs.push(`Your points add up to ${total}. Bring them down to 100 or less.`);
+      return [...new Set(errs)];
+    }
+
+    $("#form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = $("#errors");
+      const errs = check();
+      if (errs.length) {
+        errBox.textContent = errs.join(" ");
+        errBox.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      errBox.textContent = "";
+      const btn = $("#go");
+      btn.disabled = true;
+      btn.textContent = "Claiming…";
+      try {
+        const r = await fetch("/api/submit", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: $("#name").value, formClass: $("#formClass").value, code: $("#code").value,
+            question: $("#question").value, answers: readAnswers(),
+          }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          errBox.textContent = j.error || "Your question couldn't be saved. Try again.";
+          if (j.field) $("#" + j.field)?.classList.add("invalid");
+          if (j.full || r.status === 403) loadStatus();
+          return;
+        }
+        ls.del(DRAFT);
+        $("#done-slot").textContent = `Slot ${j.slot}`;
+        $("#form").hidden = true;
+        $("#done").hidden = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        loadStatus();
+      } catch {
+        errBox.textContent = "No connection. Your draft is saved on this device, so try again in a moment.";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Claim my slot";
+      }
+    });
+
+    $("#another").addEventListener("click", () => {
+      $("#form").reset();
+      list.textContent = "";
+      for (let i = 0; i < MIN; i++) addRow();
+      $("#done").hidden = true;
+      $("#errors").textContent = "";
+      $("#saved").textContent = "";
+      update();
+      loadStatus();
+      $("#name").focus();
+    });
+
+    // ---------- start ----------
+    const draft = ls.get(DRAFT);
+    if (draft) {
+      $("#name").value = draft.name || "";
+      $("#formClass").value = draft.formClass || "";
+      $("#question").value = draft.question || "";
+      (draft.answers || []).slice(0, MAX).forEach((a) => addRow(a.text, a.points));
+    }
+    while (list.children.length < MIN) addRow();
+    update();
+    $("#saved").textContent = draft ? "Draft restored from this device" : "";
+    loadStatus();
+    setInterval(loadStatus, 20000);
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bajan Showdown</title>
+  <meta name="description" content="A class-written survey gameshow about Barbados.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="game.css">
+</head>
+<body class="stage" data-screen="screen-title">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="trident" viewBox="0 0 100 120">
+      <path d="M50 2 L60 24 L54 24 L54 62 L46 62 L46 24 L40 24 Z"/>
+      <path d="M14 10 L24 30 L19 30 C19 50 30 60 46 62 L46 70 C26 68 11 55 11 30 L5 30 Z"/>
+      <path d="M86 10 L95 30 L89 30 C89 55 74 68 54 70 L54 62 C70 60 81 50 81 30 L76 30 Z"/>
+      <path d="M46 70 L54 70 L54 104 L46 112 Z"/>
+      <rect x="35" y="74" width="30" height="6" rx="1"/>
+    </symbol>
+    <symbol id="x-mark" viewBox="0 0 100 100">
+      <path d="M20 6 L50 36 L80 6 L94 20 L64 50 L94 80 L80 94 L50 64 L20 94 L6 80 L36 50 L6 20 Z"/>
+    </symbol>
+  </svg>
+
+  <!-- ============ TITLE ============ -->
+  <main id="screen-title" class="screen">
+    <div class="title-marquee marquee">
+      <div class="title-panel">
+        <svg class="title-trident" aria-hidden="true"><use href="#trident"/></svg>
+        <h1 class="game-title" id="game-title"><span>Bajan</span> <span>Showdown</span></h1>
+        <p class="tagline">The class wrote the survey. Now find out who knows Bim best.</p>
+      </div>
+    </div>
+
+    <section class="slot-status" aria-live="polite">
+      <div class="slot-dots" id="slot-dots" aria-hidden="true"></div>
+      <p class="slot-text" id="slot-text">Checking the question slots…</p>
+    </section>
+
+    <div class="title-actions">
+      <a class="btn btn-big" id="write-link" href="/submit">Write a question</a>
+      <button class="btn btn-big btn-ghost" id="host-btn" type="button">Host the game</button>
+    </div>
+    <div class="title-minor">
+      <button class="linkish" id="resume-btn" type="button" hidden>Resume the game in progress</button>
+      <a href="/teacher">Teacher page</a>
+    </div>
+  </main>
+
+  <!-- ============ HOST SIGN-IN ============ -->
+  <dialog id="login" class="sheet">
+    <form id="login-form" method="dialog">
+      <h2>Host the game</h2>
+      <p>Enter the teacher password to load the approved questions.</p>
+      <label class="field">
+        <span>Teacher password</span>
+        <input id="login-pw" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="form-error" id="login-error" role="alert"></p>
+      <div class="sheet-actions">
+        <button class="btn" id="login-go" type="submit">Load questions</button>
+        <button class="btn btn-ghost" id="login-cancel" type="button">Cancel</button>
+      </div>
+      <p class="sheet-foot">No questions yet? <button class="linkish" id="demo-btn" type="button">Practise with sample questions</button></p>
+    </form>
+  </dialog>
+
+  <!-- ============ SETUP ============ -->
+  <main id="screen-setup" class="screen">
+    <form id="setup-form" class="setup-card">
+      <h2>Set up the game</h2>
+      <p class="setup-count" id="setup-count"></p>
+      <div class="setup-grid">
+        <label class="field">
+          <span>Left team</span>
+          <input id="t0" maxlength="22" value="Team Trident" required>
+        </label>
+        <label class="field">
+          <span>Right team</span>
+          <input id="t1" maxlength="22" value="Team Flying Fish" required>
+        </label>
+        <label class="field">
+          <span>Rounds</span>
+          <select id="rounds"></select>
+        </label>
+        <label class="field">
+          <span>First team to</span>
+          <select id="target">
+            <option value="200">200 points</option>
+            <option value="300" selected>300 points</option>
+            <option value="400">400 points</option>
+            <option value="0">No target: play every round</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Question order</span>
+          <select id="order">
+            <option value="slot">Slot order</option>
+            <option value="shuffle">Shuffle</option>
+          </select>
+        </label>
+        <label class="check">
+          <input id="show-author" type="checkbox" checked>
+          <span>Show who wrote each question</span>
+        </label>
+      </div>
+      <p class="setup-note">The last two rounds are worth double and triple points. You can change any round's points during the game.</p>
+      <div class="setup-actions">
+        <button class="btn btn-big" type="submit">Start the show</button>
+        <button class="btn btn-ghost" id="setup-back" type="button">Back</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- ============ BOARD ============ -->
+  <main id="screen-board" class="screen">
+    <header class="scorebar">
+      <div class="team" id="team-0">
+        <span class="team-name"></span>
+        <span class="team-score">0</span>
+      </div>
+      <div class="bank">
+        <span class="bank-top"><span class="bank-label">Bank</span><span class="mult" id="mult" hidden></span></span>
+        <span class="bank-value" id="bank">0</span>
+        <span class="pips" id="pips" aria-label="Strikes">
+          <svg><use href="#x-mark"/></svg><svg><use href="#x-mark"/></svg><svg><use href="#x-mark"/></svg>
+        </span>
+      </div>
+      <div class="team" id="team-1">
+        <span class="team-name"></span>
+        <span class="team-score">0</span>
+      </div>
+    </header>
+
+    <section class="board-wrap marquee">
+      <div class="board-panel">
+        <div class="q-strip">
+          <div class="q-meta"><span id="round-label"></span><span id="q-author"></span></div>
+          <p class="q-text" id="q-text"></p>
+        </div>
+        <div class="board" id="board"></div>
+      </div>
+      <div class="banner" id="banner" aria-live="assertive"></div>
+    </section>
+
+    <nav class="hostbar" id="hostbar" aria-label="Host controls">
+      <div class="group">
+        <span class="glabel">Playing</span>
+        <button class="btn btn-small btn-blue" data-cmd="control" data-arg="0" id="ctl-0"></button>
+        <button class="btn btn-small btn-blue" data-cmd="control" data-arg="1" id="ctl-1"></button>
+      </div>
+      <div class="group">
+        <button class="btn btn-small btn-danger" data-cmd="strike" title="Strike (X)">Strike</button>
+        <button class="btn btn-small btn-ghost" data-cmd="buzz" title="Face-off buzz, no strike (Z)">Buzz</button>
+      </div>
+      <div class="group">
+        <span class="glabel">Bank to</span>
+        <button class="btn btn-small" data-cmd="award" data-arg="0" id="award-0"></button>
+        <button class="btn btn-small" data-cmd="award" data-arg="1" id="award-1"></button>
+      </div>
+      <div class="group" role="group" aria-label="Points for this round">
+        <button class="btn btn-small btn-ghost mult-btn" data-cmd="mult" data-arg="1">×1</button>
+        <button class="btn btn-small btn-ghost mult-btn" data-cmd="mult" data-arg="2">×2</button>
+        <button class="btn btn-small btn-ghost mult-btn" data-cmd="mult" data-arg="3">×3</button>
+      </div>
+      <div class="group">
+        <button class="btn btn-small btn-ghost" data-cmd="revealRest" title="Reveal the rest (R)">Reveal rest</button>
+        <button class="btn btn-small" data-cmd="next" id="next-btn" title="Next round (N)">Next round</button>
+      </div>
+      <div class="group">
+        <button class="btn btn-small btn-ghost" data-cmd="undo" title="Undo (U)">Undo</button>
+        <button class="btn btn-small btn-ghost" id="more-btn" type="button" aria-expanded="false" aria-controls="more-menu">More</button>
+      </div>
+      <div class="more-menu" id="more-menu" hidden>
+        <button class="btn btn-small" id="remote-btn" type="button">Open host remote</button>
+        <button class="btn btn-small btn-ghost" data-cmd="toggleQuestion" title="Q">Show or hide question</button>
+        <button class="btn btn-small btn-ghost" id="sound-btn" type="button" title="M">Sound on</button>
+        <button class="btn btn-small btn-ghost" id="fs-btn" type="button" title="F">Full screen</button>
+        <button class="btn btn-small btn-ghost" id="hide-btn" type="button" title="H">Hide controls</button>
+        <button class="btn btn-small btn-ghost" data-cmd="finish">End game now</button>
+        <button class="btn btn-small btn-ghost" id="menu-btn" type="button">Title screen</button>
+        <p class="keys">Keyboard: 1–8 reveal, X strike, Z buzz, R reveal rest, N next, U undo, Q question, H controls, F full screen, M sound.</p>
+      </div>
+    </nav>
+    <button class="show-controls" id="show-controls" type="button" hidden>Show controls</button>
+
+    <div class="strikes" id="strikes" aria-hidden="true"></div>
+  </main>
+
+  <!-- ============ WINNER ============ -->
+  <main id="screen-winner" class="screen">
+    <canvas id="confetti" aria-hidden="true"></canvas>
+    <div class="winner-marquee marquee">
+      <div class="winner-panel">
+        <svg class="title-trident" aria-hidden="true"><use href="#trident"/></svg>
+        <h2 class="winner-name" id="winner-name"></h2>
+        <p class="winner-line" id="winner-line"></p>
+        <div class="winner-scores" id="winner-scores"></div>
+      </div>
+    </div>
+    <div class="title-actions">
+      <button class="btn btn-big" id="again-btn" type="button">New game</button>
+      <button class="btn btn-ghost" id="back-board-btn" type="button">Back to the board</button>
+      <button class="btn btn-ghost" id="winner-title-btn" type="button">Title screen</button>
+    </div>
+  </main>
+
+  <script src="sounds.js"></script>
+  <script src="marquee.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teacher page · Bajan Showdown</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { background: #eef2fb; color: var(--ink); min-height: 100vh; }
+    .topbar { background: var(--ultra); color: var(--cream); border-bottom: 4px solid var(--gold); }
+    .topbar-in { max-width: 980px; margin: 0 auto; padding: 14px 18px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .topbar .trident { width: 26px; height: 31px; fill: var(--gold); }
+    .topbar h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.3rem; color: var(--gold); }
+    .topbar nav { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+    .topbar .btn-ghost { color: var(--cream); }
+    main { max-width: 980px; margin: 0 auto; padding: 20px 18px 80px; }
+
+    .panel { background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 1px 0 #d5dcef, 0 6px 20px rgba(0, 20, 87, 0.06); margin-bottom: 18px; }
+    .panel h2 { margin: 0 0 4px; font-size: 1.2rem; color: var(--ultra); }
+    .muted { color: #56627f; }
+    .login { max-width: 420px; margin: 8vh auto 0; }
+
+    .field { display: grid; gap: 5px; font-weight: 700; font-size: 0.93rem; }
+    .field input, .field textarea, .ed-row input {
+      width: 100%; min-height: 42px; padding: 8px 11px; border: 2px solid #c3cce4; border-radius: 9px;
+      background: #fff; color: var(--ink); font: 400 1rem var(--text);
+    }
+    .field textarea { min-height: 70px; resize: vertical; }
+    input:focus, textarea:focus { outline: none; border-color: var(--ultra) !important; box-shadow: 0 0 0 3px rgba(0, 38, 127, 0.15); }
+    .msg { min-height: 1.3em; margin: 8px 0 0; font-weight: 700; }
+    .msg.err { color: #b0141b; }
+    .msg.ok { color: var(--ok); }
+
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+    .stat { flex: 1 1 140px; background: #fff; border-radius: 14px; padding: 12px 16px; box-shadow: 0 1px 0 #d5dcef; }
+    .stat b { display: block; font-family: var(--display); font-weight: 400; font-size: 1.9rem; color: var(--ultra); line-height: 1.1; }
+    .stat.gold b { color: var(--gold-deep); }
+    .stat span { font-size: 0.92rem; color: #56627f; }
+
+    details.panel > summary { cursor: pointer; font-weight: 700; color: var(--ultra); font-size: 1.1rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    details.panel > summary::after { content: "Show"; font-size: 0.9rem; color: #56627f; font-weight: 400; }
+    details.panel[open] > summary::after { content: "Hide"; }
+    .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 16px; }
+    .switch { display: flex; align-items: center; gap: 10px; font-weight: 700; min-height: 42px; align-self: end; cursor: pointer; }
+    .switch input { width: 22px; height: 22px; accent-color: var(--ultra); }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .tabs { display: inline-flex; background: #dfe5f4; border-radius: 11px; padding: 3px; }
+    .tabs button { border: 0; background: transparent; padding: 7px 14px; border-radius: 8px; font: 700 0.93rem var(--text); color: #3c4a6b; cursor: pointer; min-height: 36px; }
+    .tabs button[aria-pressed="true"] { background: #fff; color: var(--ultra); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+    .toolbar .spacer { flex: 1; }
+    .btn-ghost.dark { color: var(--ultra); }
+
+    .slot { background: #fff; border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; box-shadow: 0 1px 0 #d5dcef; border-left: 6px solid var(--gold); }
+    .slot.approved { border-left-color: var(--ok); }
+    .slot-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 0.92rem; color: #56627f; }
+    .slot-no { font-family: var(--display); color: var(--ultra); font-size: 1.05rem; }
+    .pill { padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
+    .pill.pending { background: #fff1c2; color: #7a5600; }
+    .pill.approved { background: #d5f3e8; color: #0b5c45; }
+    .slot-q { font-weight: 700; font-size: 1.08rem; margin: 6px 0 8px; }
+    .slot-a { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 14px; }
+    .slot-a li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed #dde3f1; font-size: 0.95rem; }
+    .slot-a li b { font-variant-numeric: tabular-nums; color: var(--ultra); }
+    .slot-total { font-size: 0.85rem; color: #56627f; margin-top: 6px; }
+    .slot-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .empty-state { text-align: center; padding: 30px 10px; color: #56627f; }
+
+    .editor { margin-top: 8px; }
+    .ed-rows { display: grid; gap: 6px; margin: 10px 0; }
+    .ed-row { display: grid; grid-template-columns: 26px 1fr 80px 34px; gap: 6px; align-items: center; }
+    .ed-row .n { font-family: var(--display); color: var(--ultra); text-align: center; }
+    .ed-row input.p { text-align: center; }
+    .ed-row .x { border: 0; background: none; font-size: 1.3rem; color: #6a7594; cursor: pointer; height: 34px; border-radius: 8px; }
+    .ed-row .x:hover { background: #eef1fa; color: #b0141b; }
+
+    .tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-top: 12px; }
+    .reset-box { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+    .reset-box .field { width: 160px; }
+
+    #print-sheet { display: none; }
+    @media print {
+      body { background: #fff; }
+      body > *:not(#print-sheet) { display: none !important; }
+      #print-sheet { display: block; font-family: var(--text); color: #000; }
+      #print-sheet h1 { font-size: 18pt; margin: 0 0 4pt; }
+      #print-sheet .pq { break-inside: avoid; margin: 0 0 12pt; padding-bottom: 8pt; border-bottom: 1px solid #999; }
+      #print-sheet .pq h3 { font-size: 12pt; margin: 0 0 4pt; }
+      #print-sheet ol { margin: 0; padding-left: 18pt; columns: 2; font-size: 11pt; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="trident" viewBox="0 0 100 120">
+      <path d="M50 2 L60 24 L54 24 L54 62 L46 62 L46 24 L40 24 Z"/>
+      <path d="M14 10 L24 30 L19 30 C19 50 30 60 46 62 L46 70 C26 68 11 55 11 30 L5 30 Z"/>
+      <path d="M86 10 L95 30 L89 30 C89 55 74 68 54 70 L54 62 C70 60 81 50 81 30 L76 30 Z"/>
+      <path d="M46 70 L54 70 L54 104 L46 112 Z"/>
+      <rect x="35" y="74" width="30" height="6" rx="1"/>
+    </symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="topbar-in">
+      <svg class="trident" aria-hidden="true"><use href="#trident"/></svg>
+      <h1>Teacher page</h1>
+      <nav id="topnav" hidden>
+        <a class="btn btn-small" href="/">Open the gameshow</a>
+        <button class="btn btn-small btn-ghost" id="copy-link" type="button">Copy student link</button>
+        <button class="btn btn-small btn-ghost" id="signout" type="button">Sign out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- sign in -->
+    <form class="panel login" id="login" autocomplete="on">
+      <h2>Sign in</h2>
+      <p class="muted">Use the teacher password you set in Netlify.</p>
+      <label class="field">Teacher password
+        <input id="pw" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="msg err" id="login-msg" role="alert"></p>
+      <button class="btn" type="submit" id="login-go">Sign in</button>
+    </form>
+
+    <div id="app" hidden>
+      <div class="stats" aria-live="polite">
+        <div class="stat gold"><b id="n-pending">0</b><span>Waiting for you</span></div>
+        <div class="stat"><b id="n-approved">0</b><span>Approved for the game</span></div>
+        <div class="stat"><b id="n-free">0</b><span>Empty slots</span></div>
+        <div class="stat"><b id="n-open">Open</b><span>Student form</span></div>
+      </div>
+
+      <details class="panel" id="settings-panel">
+        <summary>Settings</summary>
+        <form id="settings">
+          <div class="settings-grid">
+            <label class="field">Game title
+              <input id="s-title" maxlength="40" required>
+            </label>
+            <label class="field">Number of question slots
+              <input id="s-slots" type="number" min="1" max="100" required>
+            </label>
+            <label class="field">Class code (optional)
+              <input id="s-code" maxlength="20" placeholder="Leave blank for none" autocomplete="off">
+            </label>
+            <label class="switch">
+              <input id="s-open" type="checkbox">
+              <span>Students can submit questions</span>
+            </label>
+          </div>
+          <p class="muted" style="margin:12px 0 0;font-size:.92rem">A class code stops people outside your class from filling the slots. Write it on the board when you're ready for students to start.</p>
+          <p class="msg" id="settings-msg" role="status"></p>
+          <button class="btn" type="submit">Save settings</button>
+        </form>
+      </details>
+
+      <section>
+        <div class="toolbar">
+          <div class="tabs" role="group" aria-label="Show questions">
+            <button type="button" data-filter="pending" aria-pressed="true">Waiting</button>
+            <button type="button" data-filter="approved" aria-pressed="false">Approved</button>
+            <button type="button" data-filter="all" aria-pressed="false">All</button>
+          </div>
+          <span class="spacer"></span>
+          <button class="btn btn-small btn-ghost dark" id="refresh" type="button">Refresh</button>
+          <button class="btn btn-small" id="add-q" type="button">Add a question</button>
+        </div>
+        <p class="msg" id="list-msg" role="status"></p>
+        <div id="new-editor"></div>
+        <div id="list"></div>
+      </section>
+
+      <section class="panel" style="margin-top:24px">
+        <h2>Tools</h2>
+        <div class="tools">
+          <button class="btn btn-small btn-blue" id="print" type="button">Print host answer sheet</button>
+          <button class="btn btn-small btn-ghost dark" id="backup" type="button">Download a backup</button>
+        </div>
+        <h2 style="margin-top:22px">Start fresh</h2>
+        <p class="muted">Deletes every student question so a new class can start. Settings stay the same. This can't be undone, so download a backup first.</p>
+        <div class="reset-box">
+          <label class="field">Type RESET
+            <input id="reset-word" autocomplete="off">
+          </label>
+          <button class="btn btn-small btn-danger" id="reset" type="button">Delete all questions</button>
+        </div>
+        <p class="msg" id="reset-msg" role="status"></p>
+      </section>
+    </div>
+  </main>
+
+  <div id="print-sheet"></div>
+
+  <script>
+  (() => {
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const PW_KEY = "bs-teacher-pw";
+    let pw = "";
+    try { pw = sessionStorage.getItem(PW_KEY) || ""; } catch {}
+    let data = { settings: null, slots: [] };
+    let filter = "pending";
+    let editing = null; // slot number being edited, or "new"
+
+    async function api(path, body) {
+      const r = await fetch("/api/" + path, {
+        method: body ? "POST" : "GET",
+        headers: { "x-teacher-password": pw, ...(body ? { "content-type": "application/json" } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401) { signOut("Your password didn't work. Sign in again."); throw new Error(j.error); }
+      if (!r.ok) throw new Error(j.error || "Something went wrong. Try again.");
+      return j;
+    }
+    function el(tag, props = {}, ...kids) {
+      const e = document.createElement(tag);
+      Object.entries(props).forEach(([k, v]) => (k in e ? (e[k] = v) : e.setAttribute(k, v)));
+      e.append(...kids.filter((k) => k != null));
+      return e;
+    }
+    function note(id, text, kind = "ok") { const m = $("#" + id); m.textContent = text; m.className = "msg " + kind; }
+
+    // ---------- sign in ----------
+    $("#login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      pw = $("#pw").value;
+      $("#login-go").disabled = true;
+      try {
+        await api("teacher/login", {});
+        try { sessionStorage.setItem(PW_KEY, pw); } catch {}
+        start();
+      } catch (err) {
+        note("login-msg", err.message, "err");
+      } finally {
+        $("#login-go").disabled = false;
+      }
+    });
+    function signOut(msg = "") {
+      pw = "";
+      try { sessionStorage.removeItem(PW_KEY); } catch {}
+      $("#app").hidden = true;
+      $("#topnav").hidden = true;
+      $("#login").hidden = false;
+      note("login-msg", msg, "err");
+    }
+    $("#signout").addEventListener("click", () => signOut());
+
+    async function start() {
+      $("#login").hidden = true;
+      $("#app").hidden = false;
+      $("#topnav").hidden = false;
+      await load();
+    }
+
+    // ---------- data ----------
+    async function load(quiet = false) {
+      try {
+        data = await api("teacher/slots");
+        if (!quiet || !$("#settings-panel").contains(document.activeElement)) fillSettings();
+        render();
+        if (!quiet) note("list-msg", "");
+      } catch (err) {
+        if (pw) note("list-msg", err.message, "err");
+      }
+    }
+    setInterval(() => { if (pw && editing === null && !document.hidden) load(true); }, 20000);
+    $("#refresh").addEventListener("click", () => load());
+
+    function fillSettings() {
+      const s = data.settings;
+      $("#s-title").value = s.title;
+      $("#s-slots").value = s.slotCount;
+      $("#s-code").value = s.classCode || "";
+      $("#s-open").checked = s.open;
+    }
+
+    $("#settings").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        const j = await api("teacher/settings", {
+          title: $("#s-title").value, slotCount: Number($("#s-slots").value),
+          classCode: $("#s-code").value, open: $("#s-open").checked,
+        });
+        data.settings = j.settings;
+        render();
+        note("settings-msg", "Settings saved.");
+      } catch (err) {
+        note("settings-msg", err.message, "err");
+      }
+    });
+
+    // ---------- list ----------
+    $$(".tabs button").forEach((b) =>
+      b.addEventListener("click", () => {
+        filter = b.dataset.filter;
+        $$(".tabs button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        render();
+      })
+    );
+
+    function render() {
+      const s = data.settings;
+      const pending = data.slots.filter((x) => x.status !== "approved");
+      const approved = data.slots.filter((x) => x.status === "approved");
+      const used = data.slots.filter((x) => x.slot <= s.slotCount).length;
+      $("#n-pending").textContent = pending.length;
+      $("#n-approved").textContent = approved.length;
+      $("#n-free").textContent = Math.max(0, s.slotCount - used);
+      $("#n-open").textContent = s.open ? "Open" : "Closed";
+
+      const list = $("#list");
+      list.textContent = "";
+      const shown = filter === "all" ? data.slots : filter === "approved" ? approved : pending;
+      if (!shown.length) {
+        list.append(el("div", { className: "empty-state" },
+          filter === "pending" ? "Nothing waiting. New student questions will show up here." :
+          filter === "approved" ? "No approved questions yet. Approve some from the Waiting tab." :
+          "No questions yet. Share the student link to get started."));
+        return;
+      }
+      shown.forEach((rec) => list.append(editing === rec.slot ? editor(rec) : card(rec)));
+    }
+
+    function card(rec) {
+      const approved = rec.status === "approved";
+      const when = new Date(rec.createdAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+      const total = rec.answers.reduce((t, a) => t + a.points, 0);
+      const box = el("article", { className: "slot" + (approved ? " approved" : "") },
+        el("div", { className: "slot-head" },
+          el("span", { className: "slot-no" }, `Slot ${rec.slot}`),
+          el("span", { className: "pill " + (approved ? "approved" : "pending") }, approved ? "Approved" : "Waiting"),
+          el("span", {}, `${rec.name}, ${rec.formClass}`),
+          el("span", {}, when),
+          rec.slot > data.settings.slotCount ? el("span", { className: "pill pending" }, "Beyond slot limit") : null),
+        el("p", { className: "slot-q" }, rec.question),
+        el("ol", { className: "slot-a" }, ...rec.answers.map((a, i) => el("li", {}, el("span", {}, `${i + 1}. ${a.text}`), el("b", {}, String(a.points))))),
+        el("div", { className: "slot-total" }, `${rec.answers.length} answers, ${total} points in total`)
+      );
+      const actions = el("div", { className: "slot-actions" });
+      const approveBtn = el("button", { className: "btn btn-small" + (approved ? " btn-ghost dark" : ""), type: "button" }, approved ? "Move back to waiting" : "Approve");
+      approveBtn.addEventListener("click", () => slotAction(rec.slot, approved ? "unapprove" : "approve"));
+      const editBtn = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Edit");
+      editBtn.addEventListener("click", () => { editing = rec.slot; render(); });
+      const delBtn = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Delete and free the slot");
+      let armed = false, t;
+      delBtn.addEventListener("click", () => {
+        if (!armed) {
+          armed = true;
+          delBtn.className = "btn btn-small btn-danger";
+          delBtn.textContent = "Click again to delete";
+          t = setTimeout(() => { armed = false; delBtn.className = "btn btn-small btn-ghost dark"; delBtn.textContent = "Delete and free the slot"; }, 4000);
+          return;
+        }
+        clearTimeout(t);
+        slotAction(rec.slot, "delete");
+      });
+      actions.append(approveBtn, editBtn, delBtn);
+      box.append(actions);
+      return box;
+    }
+
+    async function slotAction(slot, action, extra = {}) {
+      try {
+        await api("teacher/slot", { slot, action, ...extra });
+        const words = { approve: "approved", unapprove: "moved back to waiting", delete: "deleted. The slot is free again", update: "saved" };
+        note("list-msg", `Slot ${slot} ${words[action]}.`);
+        editing = null;
+        await load(true);
+        return true;
+      } catch (err) {
+        note("list-msg", err.message, "err");
+        return false;
+      }
+    }
+
+    // ---------- editor ----------
+    function editor(rec) {
+      const isNew = !rec;
+      rec = rec || { question: "", answers: [] };
+      const box = el("article", { className: "slot" },
+        el("div", { className: "slot-head" }, el("span", { className: "slot-no" }, isNew ? "New question" : `Editing slot ${rec.slot}`),
+          isNew ? el("span", {}, "It goes into the first empty slot, already approved.") : el("span", {}, `${rec.name}, ${rec.formClass}`)));
+      const q = el("textarea", { maxLength: 140, value: rec.question });
+      box.append(el("label", { className: "field editor" }, "Question", q));
+      const rows = el("div", { className: "ed-rows" });
+      const addRow = (a = { text: "", points: "" }) => {
+        if (rows.children.length >= 8) return;
+        const r = el("div", { className: "ed-row" },
+          el("span", { className: "n" }),
+          el("input", { className: "t", maxLength: 32, value: a.text, "aria-label": "Answer" }),
+          el("input", { className: "p", type: "number", min: 1, max: 99, value: a.points, "aria-label": "Points" }),
+          el("button", { className: "x", type: "button", "aria-label": "Remove answer" }, "×"));
+        $(".x", r).addEventListener("click", () => { if (rows.children.length > 4) { r.remove(); num(); } });
+        rows.append(r);
+        num();
+      };
+      const num = () => $$(".ed-row", rows).forEach((r, i) => ($(".n", r).textContent = i + 1));
+      rec.answers.forEach(addRow);
+      while (rows.children.length < 4) addRow();
+      box.append(rows);
+      const msg = el("p", { className: "msg err", role: "alert" });
+      const add = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Add answer");
+      add.addEventListener("click", () => addRow());
+      const save = el("button", { className: "btn btn-small", type: "button" }, isNew ? "Add to the game" : "Save changes");
+      const cancel = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Cancel");
+      cancel.addEventListener("click", () => { editing = null; $("#new-editor").textContent = ""; render(); });
+      save.addEventListener("click", async () => {
+        const answers = $$(".ed-row", rows)
+          .map((r) => ({ text: $(".t", r).value.trim(), points: Number($(".p", r).value) }))
+          .filter((a) => a.text);
+        try {
+          if (isNew) {
+            const j = await api("teacher/slot", { action: "create", question: q.value, answers });
+            note("list-msg", `Added to slot ${j.slot}.`);
+            editing = null;
+            $("#new-editor").textContent = "";
+            await load(true);
+          } else {
+            await api("teacher/slot", { slot: rec.slot, action: "update", question: q.value, answers });
+            note("list-msg", `Slot ${rec.slot} saved.`);
+            editing = null;
+            await load(true);
+          }
+        } catch (err) {
+          msg.textContent = err.message;
+        }
+      });
+      box.append(msg, el("div", { className: "slot-actions" }, add, save, cancel));
+      return box;
+    }
+    $("#add-q").addEventListener("click", () => {
+      editing = "new";
+      const holder = $("#new-editor");
+      holder.textContent = "";
+      holder.append(editor(null));
+      $("textarea", holder).focus();
+    });
+
+    // ---------- tools ----------
+    $("#copy-link").addEventListener("click", async () => {
+      const link = location.origin + "/submit";
+      try {
+        await navigator.clipboard.writeText(link);
+        $("#copy-link").textContent = "Link copied";
+      } catch {
+        $("#copy-link").textContent = link;
+      }
+      setTimeout(() => ($("#copy-link").textContent = "Copy student link"), 3000);
+    });
+
+    $("#print").addEventListener("click", () => {
+      const approved = data.slots.filter((x) => x.status === "approved");
+      const sheet = $("#print-sheet");
+      sheet.textContent = "";
+      sheet.append(el("h1", {}, `${data.settings.title}: host answer sheet`),
+        el("p", {}, `${approved.length} approved questions, in slot order. Keep this away from the players.`));
+      approved.forEach((r) =>
+        sheet.append(el("div", { className: "pq" },
+          el("h3", {}, `Slot ${r.slot}. ${r.question}`),
+          el("ol", {}, ...r.answers.map((a) => el("li", {}, `${a.text}: ${a.points}`))))));
+      if (!approved.length) sheet.append(el("p", {}, "No approved questions yet."));
+      window.print();
+    });
+
+    $("#backup").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...data }, null, 2)], { type: "application/json" });
+      const a = el("a", { href: URL.createObjectURL(blob), download: `bajan-showdown-backup-${new Date().toISOString().slice(0, 10)}.json` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+    });
+
+    $("#reset").addEventListener("click", async () => {
+      try {
+        const j = await api("teacher/reset", { confirm: $("#reset-word").value.trim() });
+        $("#reset-word").value = "";
+        note("reset-msg", `Deleted ${j.deleted} question${j.deleted === 1 ? "" : "s"}. Every slot is free.`);
+        await load(true);
+      } catch (err) {
+        note("reset-msg", err.message, "err");
+      }
+    });
+
+    if (pw) start(); else $("#pw").focus();
+  })();
+  </script>
+</body>
+</html>

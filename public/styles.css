@@ -1,0 +1,130 @@
+/* Bajan Showdown — shared design tokens and pieces.
+   Colours come from the Barbados flag: ultramarine, gold, black. */
+
+/* Fonts are self-hosted (SIL Open Font License) so the game works on school networks. */
+@font-face { font-family: "Bungee"; src: url("fonts/bungee-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Bungee Inline"; src: url("fonts/bungee-inline-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/atkinson-hyperlegible-latin-400-italic.woff2") format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Atkinson Hyperlegible"; src: url("fonts/atkinson-hyperlegible-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+
+:root {
+  --ultra: #00267f;
+  --ultra-bright: #1547c9;
+  --ultra-deep: #001457;
+  --night: #000a2e;
+  --gold: #ffc726;
+  --gold-deep: #d99a00;
+  --gold-pale: #ffe9a0;
+  --black: #000;
+  --cream: #fff4d6;
+  --paper: #fffaf0;
+  --ink: #0b1a3d;
+  --red: #e4232b;
+  --ok: #0f7a5c;
+
+  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --marquee: "Bungee Inline", "Bungee", "Arial Black", sans-serif;
+  --text: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: var(--text); line-height: 1.45; }
+
+[hidden] { display: none !important; }
+
+a { color: inherit; }
+
+:focus-visible {
+  outline: 3px solid var(--gold-pale);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* ---------- buttons ---------- */
+.btn {
+  --btn-bg: var(--gold);
+  --btn-fg: var(--black);
+  --btn-edge: var(--gold-deep);
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: 44px;
+  padding: 0.6em 1.15em;
+  border: 0;
+  border-radius: 12px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font: 700 1rem/1.1 var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--btn-edge);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--btn-edge); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: 0 4px 0 var(--btn-edge); }
+
+.btn-blue { --btn-bg: var(--ultra); --btn-fg: var(--cream); --btn-edge: var(--night); }
+.btn-ghost {
+  --btn-bg: transparent;
+  --btn-fg: currentColor;
+  --btn-edge: transparent;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+.btn-ghost:active { box-shadow: inset 0 0 0 2px currentColor; }
+.btn-danger { --btn-bg: var(--red); --btn-fg: #fff; --btn-edge: #8f0e14; }
+.btn-big { font-size: 1.2rem; padding: 0.8em 1.5em; border-radius: 14px; }
+.btn-small { min-height: 36px; padding: 0.4em 0.8em; font-size: 0.9rem; border-radius: 10px; }
+
+/* ---------- trident emblem ---------- */
+.trident { width: 1em; height: 1.2em; fill: currentColor; display: inline-block; vertical-align: middle; }
+
+/* ---------- marquee bulbs frame ----------
+   marquee.js draws two interleaved rings of bulbs as dotted SVG strokes;
+   swapping their colours gives the alternating marquee blink. */
+.marquee {
+  --bulb: 9px;          /* bulb diameter */
+  --bulb-gap: 30px;     /* distance between two bulbs of the same colour */
+  --bulb-inset: 13px;   /* bulb centre distance from the outer edge */
+  position: relative;
+  padding: 30px;
+  border-radius: 28px;
+  background: var(--black);
+}
+.marquee > .bulbs {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.bulbs rect { fill: none; stroke-linecap: round; stroke-width: var(--bulb); }
+.bulbs .on { stroke: var(--gold-pale); filter: drop-shadow(0 0 3px rgba(255, 199, 38, 0.95)); animation: bulb-on 0.75s steps(1, end) infinite; }
+.bulbs .off { stroke: #5a4308; animation: bulb-off 0.75s steps(1, end) infinite; }
+@keyframes bulb-on { 50% { stroke: #5a4308; filter: none; } }
+@keyframes bulb-off { 50% { stroke: var(--gold-pale); filter: drop-shadow(0 0 3px rgba(255, 199, 38, 0.95)); } }
+
+/* ---------- utilities ---------- */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

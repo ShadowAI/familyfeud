@@ -1,0 +1,22 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Friendly short links
+[[redirects]]
+  from = "/submit"
+  to = "/submit.html"
+  status = 200
+
+[[redirects]]
+  from = "/teacher"
+  to = "/teacher.html"
+  status = 200
+
+[[redirects]]
+  from = "/host"
+  to = "/host.html"
+  status = 200
