@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Bajan Showdown</title>
-  <meta name="description" content="A class-written survey gameshow about Barbados.">
+  <meta name="description" content="A survey gameshow about everyday life in Barbados.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="game.css">
@@ -29,18 +29,12 @@
       <div class="title-panel">
         <svg class="title-trident" aria-hidden="true"><use href="#trident"/></svg>
         <h1 class="game-title" id="game-title"><span>Bajan</span> <span>Showdown</span></h1>
-        <p class="tagline">The class wrote the survey. Now find out who knows Bim best.</p>
+        <p class="tagline">Get your team together. Who knows Bim best?</p>
       </div>
     </div>
 
-    <section class="slot-status" aria-live="polite">
-      <div class="slot-dots" id="slot-dots" aria-hidden="true"></div>
-      <p class="slot-text" id="slot-text">Checking the question slots…</p>
-    </section>
-
     <div class="title-actions">
-      <a class="btn btn-big" id="write-link" href="/submit">Write a question</a>
-      <button class="btn btn-big btn-ghost" id="host-btn" type="button">Host the game</button>
+      <button class="btn btn-big" id="host-btn" type="button">Host the game</button>
     </div>
     <div class="title-minor">
       <button class="linkish" id="resume-btn" type="button" hidden>Resume the game in progress</button>
@@ -52,7 +46,7 @@
   <dialog id="login" class="sheet">
     <form id="login-form" method="dialog">
       <h2>Host the game</h2>
-      <p>Enter the teacher password to load the approved questions.</p>
+      <p>Enter the teacher password to load the questions.</p>
       <label class="field">
         <span>Teacher password</span>
         <input id="login-pw" type="password" autocomplete="current-password" required>
@@ -62,7 +56,7 @@
         <button class="btn" id="login-go" type="submit">Load questions</button>
         <button class="btn btn-ghost" id="login-cancel" type="button">Cancel</button>
       </div>
-      <p class="sheet-foot">No questions yet? <button class="linkish" id="demo-btn" type="button">Practise with sample questions</button></p>
+      <p class="sheet-foot">Just trying it out? <button class="linkish" id="demo-btn" type="button">Practise with sample questions</button></p>
     </form>
   </dialog>
 
@@ -71,15 +65,19 @@
     <form id="setup-form" class="setup-card">
       <h2>Set up the game</h2>
       <p class="setup-count" id="setup-count"></p>
-      <div class="setup-grid">
+      <div class="setup-grid setup-grid-top">
         <label class="field">
-          <span>Left team</span>
-          <input id="t0" maxlength="22" value="Team Trident" required>
+          <span>Number of teams</span>
+          <select id="team-count">
+            <option value="2">2 teams</option>
+            <option value="3">3 teams</option>
+            <option value="4" selected>4 teams</option>
+          </select>
         </label>
-        <label class="field">
-          <span>Right team</span>
-          <input id="t1" maxlength="22" value="Team Flying Fish" required>
-        </label>
+      </div>
+      <div class="team-cards" id="team-cards"></div>
+      <p class="setup-note">Player names are optional. Each round, the next player on every team comes up for the face-off.</p>
+      <div class="setup-grid setup-grid-rest">
         <label class="field">
           <span>Rounds</span>
           <select id="rounds"></select>
@@ -96,13 +94,9 @@
         <label class="field">
           <span>Question order</span>
           <select id="order">
-            <option value="slot">Slot order</option>
-            <option value="shuffle">Shuffle</option>
+            <option value="slot">In order</option>
+            <option value="shuffle" selected>Shuffle</option>
           </select>
-        </label>
-        <label class="check">
-          <input id="show-author" type="checkbox" checked>
-          <span>Show who wrote each question</span>
         </label>
       </div>
       <p class="setup-note">The last two rounds are worth double and triple points. You can change any round's points during the game.</p>
@@ -115,28 +109,20 @@
 
   <!-- ============ BOARD ============ -->
   <main id="screen-board" class="screen">
-    <header class="scorebar">
-      <div class="team" id="team-0">
-        <span class="team-name"></span>
-        <span class="team-score">0</span>
-      </div>
-      <div class="bank">
+    <header class="scorebar" id="scorebar">
+      <div class="bank" id="bank-box">
         <span class="bank-top"><span class="bank-label">Bank</span><span class="mult" id="mult" hidden></span></span>
         <span class="bank-value" id="bank">0</span>
         <span class="pips" id="pips" aria-label="Strikes">
           <svg><use href="#x-mark"/></svg><svg><use href="#x-mark"/></svg><svg><use href="#x-mark"/></svg>
         </span>
       </div>
-      <div class="team" id="team-1">
-        <span class="team-name"></span>
-        <span class="team-score">0</span>
-      </div>
     </header>
 
     <section class="board-wrap marquee">
       <div class="board-panel">
         <div class="q-strip">
-          <div class="q-meta"><span id="round-label"></span><span id="q-author"></span></div>
+          <div class="q-meta"><span id="round-label"></span><span id="q-status"></span></div>
           <p class="q-text" id="q-text"></p>
         </div>
         <div class="board" id="board"></div>
@@ -145,19 +131,15 @@
     </section>
 
     <nav class="hostbar" id="hostbar" aria-label="Host controls">
-      <div class="group">
+      <div class="group" id="ctl-group">
         <span class="glabel">Playing</span>
-        <button class="btn btn-small btn-blue" data-cmd="control" data-arg="0" id="ctl-0"></button>
-        <button class="btn btn-small btn-blue" data-cmd="control" data-arg="1" id="ctl-1"></button>
       </div>
       <div class="group">
         <button class="btn btn-small btn-danger" data-cmd="strike" title="Strike (X)">Strike</button>
         <button class="btn btn-small btn-ghost" data-cmd="buzz" title="Face-off buzz, no strike (Z)">Buzz</button>
       </div>
-      <div class="group">
+      <div class="group" id="award-group">
         <span class="glabel">Bank to</span>
-        <button class="btn btn-small" data-cmd="award" data-arg="0" id="award-0"></button>
-        <button class="btn btn-small" data-cmd="award" data-arg="1" id="award-1"></button>
       </div>
       <div class="group" role="group" aria-label="Points for this round">
         <button class="btn btn-small btn-ghost mult-btn" data-cmd="mult" data-arg="1">×1</button>

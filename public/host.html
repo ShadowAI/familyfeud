@@ -13,13 +13,20 @@
     .conn { font-size: 0.9rem; opacity: 0.8; }
     .conn.ok { color: #7be0b8; opacity: 1; }
     .waiting { margin-top: 30px; padding: 22px; border-radius: 16px; background: #001457; line-height: 1.5; }
-    .scores { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; margin: 14px 0 10px; text-align: center; }
-    .scores div { padding: 8px; border-radius: 12px; background: #000; box-shadow: inset 0 0 0 2px #1b3f9e; }
-    .scores div.ctl { box-shadow: inset 0 0 0 3px var(--gold); }
-    .scores span { display: block; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .scores b { font-family: var(--display); font-weight: 400; font-size: 1.8rem; color: var(--gold); }
-    .scores .bank { background: var(--gold); color: #000; box-shadow: none; min-width: 110px; }
-    .scores .bank b { color: #000; }
+    .bankrow { display: flex; justify-content: center; margin: 14px 0 8px; }
+    .bank { padding: 6px 22px; border-radius: 12px; background: var(--gold); color: #000; text-align: center; min-width: 140px; }
+    .bank span { display: block; font-size: 0.85rem; }
+    .bank b { font-family: var(--display); font-weight: 400; font-size: 1.8rem; }
+    .scores { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; text-align: center; }
+    .scores div { min-width: 0; padding: 8px 6px 6px; border-radius: 12px; background: #000; box-shadow: inset 0 4px 0 var(--tc), inset 0 0 0 2px #1b3f9e; }
+    .scores div.ctl { box-shadow: inset 0 4px 0 var(--tc), inset 0 0 0 3px var(--gold); }
+    .scores div.steal { box-shadow: inset 0 4px 0 var(--tc), inset 0 0 0 3px var(--red); }
+    .scores span, .scores small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .scores span { font-size: 0.85rem; color: var(--tc); font-weight: 700; }
+    .scores small { font-size: 0.78rem; opacity: 0.85; min-height: 1.2em; }
+    .scores b { font-family: var(--display); font-weight: 400; font-size: 1.6rem; color: var(--gold); }
+    .team-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; box-shadow: inset 5px 0 0 var(--tc), 0 4px 0 var(--btn-edge); }
+    .row .btn.team-btn { flex: 1 1 40%; padding-left: 1em; }
     .round { font-size: 0.9rem; color: var(--gold-pale); margin: 6px 0 2px; }
     .question { font-weight: 700; font-size: 1.15rem; margin: 0 0 12px; }
     .answers { display: grid; gap: 6px; margin-bottom: 14px; }
@@ -55,11 +62,8 @@
   </div>
 
   <div id="panel" hidden>
-    <div class="scores">
-      <div id="s0"><span></span><b></b></div>
-      <div class="bank"><span id="bank-label">Bank</span><b id="bank"></b></div>
-      <div id="s1"><span></span><b></b></div>
-    </div>
+    <div class="bankrow"><div class="bank"><span id="bank-label">Bank</span><b id="bank"></b></div></div>
+    <div class="scores" id="scores"></div>
     <p class="round" id="round"></p>
     <p class="question" id="question"></p>
     <div class="answers" id="answers"></div>
@@ -70,15 +74,9 @@
       <button class="btn btn-ghost btn-big" data-cmd="buzz">Face-off buzz</button>
     </div>
     <p class="label">Who's playing this round</p>
-    <div class="row">
-      <button class="btn btn-blue" data-cmd="control" data-arg="0" id="c0"></button>
-      <button class="btn btn-blue" data-cmd="control" data-arg="1" id="c1"></button>
-    </div>
+    <div class="row" id="ctl-row"></div>
     <p class="label">Give the bank to</p>
-    <div class="row">
-      <button class="btn" data-cmd="award" data-arg="0" id="a0"></button>
-      <button class="btn" data-cmd="award" data-arg="1" id="a1"></button>
-    </div>
+    <div class="row" id="award-row"></div>
     <p class="label">Points this round</p>
     <div class="row">
       <button class="btn btn-ghost mult" data-cmd="mult" data-arg="1">Single</button>
@@ -93,7 +91,7 @@
     <div class="row">
       <button class="btn btn-big" data-cmd="next" id="next">Next round</button>
     </div>
-    <p class="hint">Steal: after 3 strikes, let the other team give one answer. If it's on the board, tap it, then give them the bank. If not, give the bank to the team that was playing.</p>
+    <p class="hint">Face-off: the player named under each team comes up. Tap the team whose answer is higher on the board as the one playing.<br>Steal: after 3 strikes, the other teams can steal with one answer. If it's on the board, tap it, then give them the bank. If not, give the bank to the team that was playing.</p>
   </div>
 
   <script>
@@ -121,6 +119,31 @@
       G = m.state;
       render();
     };
+    // Team boxes and buttons, rebuilt when the number of teams changes.
+    let built = 0;
+    function buildTeams() {
+      const n = G.teams.length;
+      if (built === n) return;
+      built = n;
+      const mk = (tag, props) => Object.assign(document.createElement(tag), props);
+      const scores = $("#scores"), ctl = $("#ctl-row"), award = $("#award-row");
+      scores.textContent = ctl.textContent = award.textContent = "";
+      scores.style.setProperty("--n", n);
+      G.teams.forEach((_, i) => {
+        const tc = (G.colours && G.colours[i]) || "#ffc726";
+        const box = mk("div", { id: "s" + i });
+        box.style.setProperty("--tc", tc);
+        box.append(mk("span"), mk("b"), mk("small"));
+        scores.append(box);
+        const c = mk("button", { id: "c" + i, className: "btn btn-blue team-btn" });
+        c.dataset.cmd = "control"; c.dataset.arg = i; c.style.setProperty("--tc", tc);
+        ctl.append(c);
+        const a = mk("button", { id: "a" + i, className: "btn team-btn" });
+        a.dataset.cmd = "award"; a.dataset.arg = i; a.style.setProperty("--tc", tc);
+        award.append(a);
+      });
+    }
+
     chan.postMessage({ type: "hello" });
     setInterval(() => { if (!G) chan.postMessage({ type: "hello" }); }, 2000);
 
@@ -131,11 +154,18 @@
       if (!G) return;
       const q = G.questions[G.round];
       const m = G.mults[G.round] || 1;
+      buildTeams();
       G.teams.forEach((t, i) => {
         const box = $("#s" + i);
         box.querySelector("span").textContent = t.name;
         box.querySelector("b").textContent = t.score;
+        let line = "";
+        if (G.stage === "faceoff") line = `Face-off: ${G.faceoff[i]}`;
+        else if (G.stage === "playing" && i === G.control) line = `Up: ${G.upNext}`;
+        else if (G.stage === "steal" && i !== G.control) line = "Can steal";
+        box.querySelector("small").textContent = line;
         box.classList.toggle("ctl", G.control === i && G.awardedTo === null);
+        box.classList.toggle("steal", G.stage === "steal" && i !== G.control);
         $("#c" + i).textContent = t.name;
         $("#c" + i).classList.toggle("is-on", G.control === i);
         $("#a" + i).textContent = t.name;

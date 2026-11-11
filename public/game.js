@@ -3,29 +3,29 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const S = window.ShowSound;
-  const SAVE_KEY = "bs-game-v1";
+  const SAVE_KEY = "bs-game-v2";
+  const SETUP_KEY = "bs-setup-v1";
   const PW_KEY = "bs-teacher-pw";
   const chan = "BroadcastChannel" in window ? new BroadcastChannel("bajan-showdown") : null;
 
-  // Sample questions so the host can practise before students have written any.
-  // The point values are made up for practice.
+  const MAX_TEAMS = 4;
+  const MAX_PLAYERS = 4;
+  const TEAM_COLOURS = ["#ffc726", "#5ec8ff", "#ff8a5c", "#7be0a0"];
+  const DEFAULT_NAMES = ["Team Trident", "Team Flying Fish", "Team Green Monkey", "Team Pelican"];
+
+  // Practice questions, so the host can try the controls without the password.
+  // They're kept separate from the real questions, which stay behind the password.
   const SAMPLE = [
-    { slot: 1, author: "Sample", formClass: "", question: "Name a dish you'd find at a Bajan Sunday lunch.", answers: [
-      { text: "Macaroni pie", points: 34 }, { text: "Baked chicken", points: 22 }, { text: "Rice and peas", points: 15 },
-      { text: "Fried plantain", points: 10 }, { text: "Coleslaw", points: 8 }, { text: "Pigeon peas", points: 5 } ] },
-    { slot: 2, author: "Sample", formClass: "", question: "Name something you'd see on Grand Kadooment Day.", answers: [
-      { text: "Costumes", points: 31 }, { text: "Music trucks", points: 24 }, { text: "Feathers", points: 15 },
-      { text: "Big crowds", points: 12 }, { text: "Soca artistes", points: 9 }, { text: "Police", points: 5 } ] },
-    { slot: 3, author: "Sample", formClass: "", question: "Name a beach in Barbados.", answers: [
-      { text: "Crane Beach", points: 25 }, { text: "Accra Beach", points: 20 }, { text: "Brownes Beach", points: 16 },
-      { text: "Bathsheba", points: 13 }, { text: "Miami Beach", points: 10 }, { text: "Carlisle Bay", points: 8 }, { text: "Mullins", points: 4 } ] },
-    { slot: 4, author: "Sample", formClass: "", question: "Name a snack you'd buy at the school tuck shop.", answers: [
-      { text: "Fish cakes", points: 29 }, { text: "Cheese cutter", points: 23 }, { text: "Turnover", points: 14 },
-      { text: "Tamarind balls", points: 12 }, { text: "Sugar cake", points: 9 } ] },
-    { slot: 5, author: "Sample", formClass: "", question: "Name a parish in Barbados.", answers: [
-      { text: "St. Michael", points: 30 }, { text: "Christ Church", points: 21 }, { text: "St. James", points: 15 },
-      { text: "St. Philip", points: 11 }, { text: "St. Lucy", points: 8 }, { text: "St. Andrew", points: 6 },
-      { text: "St. Joseph", points: 4 }, { text: "St. Peter", points: 3 } ] },
+    { slot: 1, question: "Name something students sell at school to make extra money.", answers: [
+      { text: "Snacks", points: 30 }, { text: "Sweeties", points: 22 }, { text: "Freeze pops", points: 14 },
+      { text: "Tamarind balls", points: 10 }, { text: "Cupcakes", points: 8 }, { text: "Bracelets", points: 6 },
+      { text: "Homework answers", points: 4 } ] },
+    { slot: 2, question: "Name something you'll find on a Bajan gallery.", answers: [
+      { text: "Chairs", points: 30 }, { text: "Potted plants", points: 22 }, { text: "Somebody watching the road", points: 14 },
+      { text: "Shoes", points: 10 }, { text: "The dog", points: 8 }, { text: "A broom", points: 5 } ] },
+    { slot: 3, question: "Name something that's always broken at school.", answers: [
+      { text: "The fan", points: 26 }, { text: "The toilets", points: 22 }, { text: "The printer", points: 16 },
+      { text: "The projector", points: 12 }, { text: "The water cooler", points: 10 }, { text: "The bell", points: 6 } ] },
   ];
 
   const store = {
@@ -39,17 +39,15 @@
   };
 
   let title = "Bajan Showdown";
-  let pool = [];       // approved questions loaded from the server (or samples)
+  let pool = [];       // questions loaded from the server (or samples)
   let isDemo = false;
   let G = null;        // the game in progress
   let history = [];    // undo stack (JSON snapshots)
   let renderedRound = -1;
-  let statusTimer = null;
 
   // ---------- screens ----------
   function show(id) {
     document.body.dataset.screen = id;
-    if (id === "screen-title") startStatusPolling(); else stopStatusPolling();
     requestAnimationFrame(() => window.initMarquees && window.initMarquees());
   }
 
@@ -64,36 +62,12 @@
     [first, rest].filter(Boolean).forEach((w) => { const s = document.createElement("span"); s.textContent = w; h.append(s, " "); });
   }
 
-  // ---------- title screen: live slot count ----------
-  async function loadStatus() {
+  async function loadTitle() {
     try {
       const r = await fetch("/api/status", { cache: "no-store" });
-      if (!r.ok) throw new Error();
-      const st = await r.json();
-      setTitle(st.title);
-      const dots = $("#slot-dots");
-      dots.textContent = "";
-      const taken = new Set(st.taken);
-      for (let i = 1; i <= st.slotCount; i++) {
-        const d = document.createElement("span");
-        if (taken.has(i)) d.className = "taken";
-        dots.append(d);
-      }
-      const text = $("#slot-text");
-      text.textContent = "";
-      if (!st.open) text.textContent = "Question writing is closed.";
-      else if (st.left === 0) text.textContent = "Every question slot is taken.";
-      else text.textContent = `${st.left} of ${st.slotCount} question slots left`;
-      const small = document.createElement("small");
-      small.textContent = st.open && st.left > 0 ? "First come, first served. One question each." : `${st.slotCount - st.left} questions written by the class`;
-      text.append(small);
-    } catch {
-      $("#slot-dots").textContent = "";
-      $("#slot-text").textContent = "The question bank isn't connected yet, so you can only practise with sample questions for now.";
-    }
+      if (r.ok) setTitle((await r.json()).title);
+    } catch {}
   }
-  function startStatusPolling() { loadStatus(); stopStatusPolling(); statusTimer = setInterval(loadStatus, 15000); }
-  function stopStatusPolling() { clearInterval(statusTimer); }
 
   // ---------- host sign-in ----------
   const dlg = $("#login");
@@ -113,7 +87,7 @@
         return openLogin(j.error || "The questions couldn't be loaded. Check your connection and try again.");
       }
       sess.set(PW_KEY, pw);
-      if (!j.questions.length) return openLogin("No questions are approved yet. Approve some on the teacher page first.");
+      if (!j.questions.length) return openLogin("No questions are switched on for the game. Turn some on in the teacher page first.");
       if (dlg.open) dlg.close();
       setTitle(j.title);
       pool = j.questions;
@@ -144,11 +118,70 @@
   });
 
   // ---------- setup ----------
+  // The team setup is remembered between games on this computer.
+  function loadSetup() {
+    const saved = store.get(SETUP_KEY) || {};
+    const count = [2, 3, 4].includes(saved.count) ? saved.count : 4;
+    const teams = Array.from({ length: MAX_TEAMS }, (_, i) => {
+      const t = (saved.teams && saved.teams[i]) || {};
+      const size = Number.isInteger(t.size) && t.size >= 1 && t.size <= MAX_PLAYERS ? t.size : MAX_PLAYERS;
+      const players = Array.from({ length: MAX_PLAYERS }, (_, k) => String((t.players && t.players[k]) || ""));
+      return { name: typeof t.name === "string" ? t.name : DEFAULT_NAMES[i], size, players };
+    });
+    return { count, teams };
+  }
+  let setup = loadSetup();
+  const saveSetup = () => store.set(SETUP_KEY, setup);
+
+  function el(tag, props = {}, ...kids) {
+    const e = document.createElement(tag);
+    Object.entries(props).forEach(([k, v]) => (k in e ? (e[k] = v) : e.setAttribute(k, v)));
+    e.append(...kids.filter((k) => k != null));
+    return e;
+  }
+
+  function renderTeamCards() {
+    const box = $("#team-cards");
+    box.textContent = "";
+    box.dataset.count = setup.count;
+    setup.teams.slice(0, setup.count).forEach((t, i) => {
+      const name = el("input", { maxLength: 22, value: t.name, placeholder: DEFAULT_NAMES[i], "aria-label": `Team ${i + 1} name` });
+      name.addEventListener("input", () => { t.name = name.value; saveSetup(); });
+
+      const size = el("select", { "aria-label": `Players on team ${i + 1}` },
+        ...[1, 2, 3, 4].map((n) => el("option", { value: n, textContent: `${n} player${n === 1 ? "" : "s"}` })));
+      size.value = String(t.size);
+
+      const players = el("div", { className: "player-inputs" });
+      const drawPlayers = () => {
+        players.textContent = "";
+        for (let k = 0; k < t.size; k++) {
+          const p = el("input", { maxLength: 16, value: t.players[k], placeholder: `Player ${k + 1}`, "aria-label": `Team ${i + 1}, player ${k + 1}` });
+          p.addEventListener("input", () => { t.players[k] = p.value; saveSetup(); });
+          players.append(p);
+        }
+      };
+      size.addEventListener("change", () => { t.size = Number(size.value); saveSetup(); drawPlayers(); });
+      drawPlayers();
+
+      box.append(el("fieldset", { className: "team-card", style: `--tc:${TEAM_COLOURS[i]}` },
+        el("legend", { className: "visually-hidden" }, `Team ${i + 1}`),
+        el("div", { className: "team-card-head" }, el("span", { "aria-hidden": "true" }, `Team ${i + 1}`), size),
+        name,
+        players));
+    });
+  }
+  $("#team-count").addEventListener("change", (e) => {
+    setup.count = Number(e.target.value);
+    saveSetup();
+    renderTeamCards();
+  });
+
   function openSetup() {
     const n = pool.length;
     $("#setup-count").textContent = isDemo
       ? `${n} sample questions loaded for practice.`
-      : `${n} approved question${n === 1 ? "" : "s"} from the class.`;
+      : `${n} question${n === 1 ? "" : "s"} ready.`;
     const sel = $("#rounds");
     sel.textContent = "";
     const choices = [...new Set([3, 4, 5, 6, 8, 10].filter((x) => x < n).concat(n))];
@@ -158,7 +191,10 @@
       o.textContent = c === n ? `All ${n} questions` : `${c} rounds`;
       sel.append(o);
     });
-    sel.value = n >= 4 ? String(Math.min(n, choices.includes(4) ? 4 : n)) : String(n);
+    const preferred = choices.includes(6) ? 6 : n;
+    sel.value = String(preferred);
+    $("#team-count").value = String(setup.count);
+    renderTeamCards();
     show("screen-setup");
   }
   $("#setup-back").addEventListener("click", () => show("screen-title"));
@@ -179,22 +215,23 @@
     order = order.slice(0, Number($("#rounds").value) || pool.length);
     const n = order.length;
     G = {
-      v: 1,
+      v: 2,
       title,
       demo: isDemo,
       questions: order.map((i) => pool[i]),
-      teams: [
-        { name: $("#t0").value.trim() || "Team Trident", score: 0 },
-        { name: $("#t1").value.trim() || "Team Flying Fish", score: 0 },
-      ],
+      teams: setup.teams.slice(0, setup.count).map((t, i) => ({
+        name: t.name.trim() || DEFAULT_NAMES[i],
+        score: 0,
+        players: t.players.slice(0, t.size).map((p, k) => p.trim() || `Player ${k + 1}`),
+      })),
       target: Number($("#target").value) || 0,
-      showAuthor: $("#show-author").checked,
       round: 0,
       mults: defaultMults(n),
       revealed: [],
       scored: [],
       strikes: 0,
-      control: null,
+      control: null,  // team playing this round, once the face-off is won
+      turn: 0,        // answers that team has given since winning the face-off
       awardedTo: null,
       lastAward: 0,
       showQuestion: true,
@@ -203,6 +240,7 @@
     };
     history = [];
     renderedRound = -1;
+    shownScore.length = 0;
     save();
     show("screen-board");
     render();
@@ -217,6 +255,24 @@
   const isLastRound = () => G.round >= G.questions.length - 1;
   const targetReached = () => G.target > 0 && G.teams.some((t) => t.score >= G.target);
   const gameOverNext = () => isLastRound() || targetReached();
+  const isTeam = (t) => Number.isInteger(t) && t >= 0 && t < G.teams.length;
+
+  // Where the round is: face-off, a team playing, a steal, or banked.
+  function stage() {
+    if (G.awardedTo !== null) return "done";
+    if (G.control === null) return "faceoff";
+    if (G.strikes >= 3) return "steal";
+    return "playing";
+  }
+  // Each round, the next player on every team comes up for the face-off.
+  const faceoffIndex = (team) => G.round % team.players.length;
+  const faceoffPlayer = (team) => team.players[faceoffIndex(team)];
+  // After winning the face-off, the team answers in turn, starting with the
+  // player after the one who faced off.
+  function upNext() {
+    const team = G.teams[G.control];
+    return team.players[(faceoffIndex(team) + 1 + G.turn) % team.players.length];
+  }
 
   function save() { if (G) store.set(SAVE_KEY, G); }
   function snapshot() { history.push(JSON.stringify(G)); if (history.length > 80) history.shift(); }
@@ -246,6 +302,7 @@
         const i = Number(arg);
         if (!(i >= 0 && i < q.answers.length) || G.revealed.includes(i)) return;
         snapshot();
+        if (stage() === "playing") G.turn += 1;
         G.revealed.push(i);
         G.skipArmed = false;
         if (G.awardedTo === null) { G.scored.push(i); S.ding(); hit(i); } else S.flip();
@@ -255,6 +312,7 @@
         if (G.awardedTo !== null || G.strikes >= 3) return;
         snapshot();
         G.strikes += 1;
+        if (G.control !== null && G.strikes < 3) G.turn += 1;
         showXs(G.strikes);
         S.buzz();
         if (G.strikes === 3 && G.control !== null) setTimeout(() => S.steal(), 1000);
@@ -266,14 +324,15 @@
         return;
       case "control": {
         const t = Number(arg);
-        if (G.awardedTo !== null || (t !== 0 && t !== 1)) return;
+        if (G.awardedTo !== null || !isTeam(t)) return;
         snapshot();
         G.control = G.control === t ? null : t;
+        G.turn = 0;
         break;
       }
       case "award": {
         const t = Number(arg);
-        if (G.awardedTo !== null || (t !== 0 && t !== 1)) return;
+        if (G.awardedTo !== null || !isTeam(t)) return;
         const amount = bankNow();
         snapshot();
         G.teams[t].score += amount;
@@ -306,7 +365,7 @@
         snapshot();
         if (gameOverNext()) { G.phase = "end"; commit(); return showWinner(); }
         G.round += 1;
-        Object.assign(G, { revealed: [], scored: [], strikes: 0, control: null, awardedTo: null, lastAward: 0, skipArmed: false, showQuestion: true });
+        Object.assign(G, { revealed: [], scored: [], strikes: 0, control: null, turn: 0, awardedTo: null, lastAward: 0, skipArmed: false, showQuestion: true });
         S.round();
         break;
       }
@@ -342,7 +401,36 @@
   // Column order: 1–4 down the left, 5–8 down the right.
   board.append(...tiles);
 
-  const shownScore = [null, null];
+  // Team boxes go either side of the bank: 2 left and 2 right for four teams.
+  let builtTeams = 0;
+  function buildTeams() {
+    const n = G.teams.length;
+    if (builtTeams === n) return;
+    builtTeams = n;
+    const bar = $("#scorebar");
+    const bank = $("#bank-box");
+    $$(".team", bar).forEach((e) => e.remove());
+    const left = Math.ceil(n / 2);
+    G.teams.forEach((_, i) => {
+      const box = el("div", { className: "team", id: `team-${i}`, style: `--tc:${TEAM_COLOURS[i]}` },
+        el("span", { className: "team-name" }),
+        el("span", { className: "team-score" }, "0"),
+        el("span", { className: "team-player" }));
+      if (i < left) bank.before(box); else bar.append(box);
+    });
+    bar.style.gridTemplateColumns = `repeat(${left}, minmax(0, 1fr)) auto repeat(${n - left}, minmax(0, 1fr))`;
+    bar.dataset.teams = n;
+
+    [["#ctl-group", "control", "btn-blue"], ["#award-group", "award", ""]].forEach(([gid, cmd, cls]) => {
+      const g = $(gid);
+      $$("button", g).forEach((b) => b.remove());
+      G.teams.forEach((_, i) => {
+        g.append(el("button", { type: "button", className: `btn btn-small team-btn ${cls}`.trim(), id: `${cmd}-${i}`, style: `--tc:${TEAM_COLOURS[i]}`, "data-cmd": cmd, "data-arg": i }));
+      });
+    });
+  }
+
+  const shownScore = [];
   function tweenScore(el, idx, to) {
     const from = shownScore[idx] ?? to;
     shownScore[idx] = to;
@@ -358,16 +446,25 @@
 
   function render() {
     if (!G) return;
+    buildTeams();
     const q = cur();
     const n = q.answers.length;
+    const st = stage();
 
     G.teams.forEach((t, i) => {
-      const el = $(`#team-${i}`);
-      $(".team-name", el).textContent = t.name;
-      tweenScore($(".team-score", el), i, t.score);
-      el.classList.toggle("has-control", G.control === i && G.awardedTo === null);
-      $(`#ctl-${i}`).textContent = t.name;
-      $(`#ctl-${i}`).classList.toggle("is-on", G.control === i);
+      const box = $(`#team-${i}`);
+      $(".team-name", box).textContent = t.name;
+      tweenScore($(".team-score", box), i, t.score);
+      let line = "";
+      if (st === "faceoff") line = `Face-off: ${faceoffPlayer(t)}`;
+      else if (st === "playing" && i === G.control) line = `Up: ${upNext()}`;
+      else if (st === "steal" && i !== G.control) line = "Can steal";
+      $(".team-player", box).textContent = line || " ";
+      box.classList.toggle("has-control", G.control === i && G.awardedTo === null);
+      box.classList.toggle("can-steal", st === "steal" && i !== G.control);
+      box.classList.toggle("won-round", G.awardedTo === i);
+      $(`#control-${i}`).textContent = t.name;
+      $(`#control-${i}`).classList.toggle("is-on", G.control === i);
       $(`#award-${i}`).textContent = t.name;
     });
 
@@ -378,7 +475,10 @@
     $$("#pips svg").forEach((s, i) => s.classList.toggle("on", i < G.strikes));
 
     $("#round-label").textContent = `Round ${G.round + 1} of ${G.questions.length}`;
-    $("#q-author").textContent = G.showAuthor && q.author && q.author !== "Sample" ? `Question by ${q.author}${q.formClass ? `, ${q.formClass}` : ""}` : "";
+    $("#q-status").textContent =
+      st === "faceoff" ? "Face-off" :
+      st === "playing" ? `${G.teams[G.control].name} playing` :
+      st === "steal" ? "Steal" : "";
     const qt = $("#q-text");
     qt.textContent = q.question;
     qt.classList.toggle("hidden-q", !G.showQuestion);
@@ -410,6 +510,8 @@
     renderBanner();
   }
 
+  const listNames = (names) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+
   let lastBanner = "";
   function renderBanner() {
     if (!G) return;
@@ -417,7 +519,10 @@
     let text = "", cls = "";
     if (transient) text = transient;
     else if (G.awardedTo !== null) text = G.lastAward ? `${G.teams[G.awardedTo].name} +${G.lastAward}` : `${G.teams[G.awardedTo].name} gets nothing`;
-    else if (G.strikes === 3 && G.control !== null) { text = `${G.teams[1 - G.control].name} can steal`; cls = "steal"; }
+    else if (G.strikes === 3 && G.control !== null) {
+      text = G.teams.length === 2 ? `${G.teams[1 - G.control].name} can steal` : "Steal! Any other team";
+      cls = "steal";
+    }
     else if (G.strikes === 3) { text = "Three strikes"; cls = "steal"; }
     else if (G.scored.length === cur().answers.length) text = "Board cleared";
     el.className = "banner" + (cls ? " " + cls : "");
@@ -472,21 +577,23 @@
 
   // ---------- winner ----------
   function showWinner() {
-    const [a, b] = G.teams;
-    const tie = a.score === b.score;
-    const w = a.score > b.score ? a : b;
-    $("#winner-name").textContent = tie ? "It's a tie" : w.name;
-    $("#winner-line").textContent = tie ? `${a.score} points each. What a game.` : `wins with ${w.score} points`;
+    const ranked = G.teams.map((t, i) => ({ ...t, i })).sort((a, b) => b.score - a.score);
+    const best = ranked[0].score;
+    const leaders = ranked.filter((t) => t.score === best);
+    if (leaders.length > 1) {
+      $("#winner-name").textContent = "It's a tie";
+      $("#winner-line").textContent = `${listNames(leaders.map((t) => t.name))} share the top spot with ${best} points.`;
+    } else {
+      $("#winner-name").textContent = leaders[0].name;
+      $("#winner-line").textContent = `wins with ${best} points`;
+    }
     const sc = $("#winner-scores");
     sc.textContent = "";
-    [a, b].forEach((t) => {
-      const d = document.createElement("div");
-      const s = document.createElement("span");
-      s.textContent = t.name;
-      const n = document.createElement("b");
-      n.textContent = t.score;
-      d.append(s, n);
-      sc.append(d);
+    const ord = (n) => n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : n % 10] || "th");
+    ranked.forEach((t) => {
+      const place = ranked.findIndex((x) => x.score === t.score) + 1; // ties share a place
+      sc.append(el("div", { style: `--tc:${TEAM_COLOURS[t.i]}` },
+        el("small", {}, ord(place)), el("span", {}, t.name), el("b", {}, String(t.score))));
     });
     show("screen-winner");
     S.fanfare();
@@ -598,10 +705,20 @@
   // ---------- host remote (second window, same browser) ----------
   function broadcast() {
     if (!chan) return;
+    const live = G && G.phase === "play";
     chan.postMessage({
       type: "state",
       title,
-      state: G ? { ...G, bankNow: G.phase === "play" ? bankNow() : 0, gameOverNext: G.phase === "play" && gameOverNext(), canUndo: history.length > 0 } : null,
+      state: G ? {
+        ...G,
+        colours: TEAM_COLOURS,
+        stage: live ? stage() : "end",
+        faceoff: G.teams.map((t) => faceoffPlayer(t)),
+        upNext: live && stage() === "playing" ? upNext() : null,
+        bankNow: live ? bankNow() : 0,
+        gameOverNext: live && gameOverNext(),
+        canUndo: history.length > 0,
+      } : null,
     });
   }
   if (chan) {
@@ -618,7 +735,7 @@
   // ---------- resume after a refresh ----------
   function refreshResume() {
     const saved = store.get(SAVE_KEY);
-    $("#resume-btn").hidden = !(saved && saved.v === 1 && saved.phase === "play");
+    $("#resume-btn").hidden = !(saved && saved.v === 2 && saved.phase === "play");
   }
   $("#resume-btn").addEventListener("click", () => {
     const saved = store.get(SAVE_KEY);
@@ -629,6 +746,7 @@
     if (!pool.length) pool = isDemo ? SAMPLE : saved.questions;
     history = [];
     renderedRound = -1;
+    shownScore.length = 0;
     show("screen-board");
     render();
     broadcast();
@@ -638,5 +756,6 @@
   const params = new URLSearchParams(location.search);
   refreshResume();
   show("screen-title");
+  loadTitle();
   if (params.has("demo")) { pool = SAMPLE; isDemo = true; openSetup(); }
 })();

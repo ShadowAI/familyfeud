@@ -61,6 +61,7 @@
     .pill { padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
     .pill.pending { background: #fff1c2; color: #7a5600; }
     .pill.approved { background: #d5f3e8; color: #0b5c45; }
+    .pill.source { background: #e3e8f6; color: #34446b; }
     .slot-q { font-weight: 700; font-size: 1.08rem; margin: 6px 0 8px; }
     .slot-a { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 14px; }
     .slot-a li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed #dde3f1; font-size: 0.95rem; }
@@ -110,7 +111,6 @@
       <h1>Teacher page</h1>
       <nav id="topnav" hidden>
         <a class="btn btn-small" href="/">Open the gameshow</a>
-        <button class="btn btn-small btn-ghost" id="copy-link" type="button">Copy student link</button>
         <button class="btn btn-small btn-ghost" id="signout" type="button">Sign out</button>
       </nav>
     </div>
@@ -130,10 +130,9 @@
 
     <div id="app" hidden>
       <div class="stats" aria-live="polite">
-        <div class="stat gold"><b id="n-pending">0</b><span>Waiting for you</span></div>
-        <div class="stat"><b id="n-approved">0</b><span>Approved for the game</span></div>
-        <div class="stat"><b id="n-free">0</b><span>Empty slots</span></div>
-        <div class="stat"><b id="n-open">Open</b><span>Student form</span></div>
+        <div class="stat gold"><b id="n-approved">0</b><span>In the game</span></div>
+        <div class="stat"><b id="n-pending">0</b><span>Left out</span></div>
+        <div class="stat"><b id="n-total">0</b><span>Questions in total</span></div>
       </div>
 
       <details class="panel" id="settings-panel">
@@ -143,18 +142,7 @@
             <label class="field">Game title
               <input id="s-title" maxlength="40" required>
             </label>
-            <label class="field">Number of question slots
-              <input id="s-slots" type="number" min="1" max="100" required>
-            </label>
-            <label class="field">Class code (optional)
-              <input id="s-code" maxlength="20" placeholder="Leave blank for none" autocomplete="off">
-            </label>
-            <label class="switch">
-              <input id="s-open" type="checkbox">
-              <span>Students can submit questions</span>
-            </label>
           </div>
-          <p class="muted" style="margin:12px 0 0;font-size:.92rem">A class code stops people outside your class from filling the slots. Write it on the board when you're ready for students to start.</p>
           <p class="msg" id="settings-msg" role="status"></p>
           <button class="btn" type="submit">Save settings</button>
         </form>
@@ -163,9 +151,9 @@
       <section>
         <div class="toolbar">
           <div class="tabs" role="group" aria-label="Show questions">
-            <button type="button" data-filter="pending" aria-pressed="true">Waiting</button>
-            <button type="button" data-filter="approved" aria-pressed="false">Approved</button>
-            <button type="button" data-filter="all" aria-pressed="false">All</button>
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="approved" aria-pressed="false">In the game</button>
+            <button type="button" data-filter="pending" aria-pressed="false">Left out</button>
           </div>
           <span class="spacer"></span>
           <button class="btn btn-small btn-ghost dark" id="refresh" type="button">Refresh</button>
@@ -182,13 +170,19 @@
           <button class="btn btn-small btn-blue" id="print" type="button">Print host answer sheet</button>
           <button class="btn btn-small btn-ghost dark" id="backup" type="button">Download a backup</button>
         </div>
+        <h2 style="margin-top:22px">Built-in questions</h2>
+        <p class="muted">Deleted a built-in question by mistake? This puts back any that are missing. Your own questions and edits stay as they are.</p>
+        <div class="tools">
+          <button class="btn btn-small btn-ghost dark" id="restore" type="button">Put back missing built-in questions</button>
+        </div>
+        <p class="msg" id="restore-msg" role="status"></p>
         <h2 style="margin-top:22px">Start fresh</h2>
-        <p class="muted">Deletes every student question so a new class can start. Settings stay the same. This can't be undone, so download a backup first.</p>
+        <p class="muted">Deletes every question, including ones you added or edited, and loads the original built-in questions again. Settings stay the same. This can't be undone, so download a backup first.</p>
         <div class="reset-box">
           <label class="field">Type RESET
             <input id="reset-word" autocomplete="off">
           </label>
-          <button class="btn btn-small btn-danger" id="reset" type="button">Delete all questions</button>
+          <button class="btn btn-small btn-danger" id="reset" type="button">Start fresh</button>
         </div>
         <p class="msg" id="reset-msg" role="status"></p>
       </section>
@@ -205,7 +199,7 @@
     let pw = "";
     try { pw = sessionStorage.getItem(PW_KEY) || ""; } catch {}
     let data = { settings: null, slots: [] };
-    let filter = "pending";
+    let filter = "all";
     let editing = null; // slot number being edited, or "new"
 
     async function api(path, body) {
@@ -277,18 +271,12 @@
     function fillSettings() {
       const s = data.settings;
       $("#s-title").value = s.title;
-      $("#s-slots").value = s.slotCount;
-      $("#s-code").value = s.classCode || "";
-      $("#s-open").checked = s.open;
     }
 
     $("#settings").addEventListener("submit", async (e) => {
       e.preventDefault();
       try {
-        const j = await api("teacher/settings", {
-          title: $("#s-title").value, slotCount: Number($("#s-slots").value),
-          classCode: $("#s-code").value, open: $("#s-open").checked,
-        });
+        const j = await api("teacher/settings", { title: $("#s-title").value });
         data.settings = j.settings;
         render();
         note("settings-msg", "Settings saved.");
@@ -307,23 +295,20 @@
     );
 
     function render() {
-      const s = data.settings;
       const pending = data.slots.filter((x) => x.status !== "approved");
       const approved = data.slots.filter((x) => x.status === "approved");
-      const used = data.slots.filter((x) => x.slot <= s.slotCount).length;
       $("#n-pending").textContent = pending.length;
       $("#n-approved").textContent = approved.length;
-      $("#n-free").textContent = Math.max(0, s.slotCount - used);
-      $("#n-open").textContent = s.open ? "Open" : "Closed";
+      $("#n-total").textContent = data.slots.length;
 
       const list = $("#list");
       list.textContent = "";
       const shown = filter === "all" ? data.slots : filter === "approved" ? approved : pending;
       if (!shown.length) {
         list.append(el("div", { className: "empty-state" },
-          filter === "pending" ? "Nothing waiting. New student questions will show up here." :
-          filter === "approved" ? "No approved questions yet. Approve some from the Waiting tab." :
-          "No questions yet. Share the student link to get started."));
+          filter === "pending" ? "Nothing is left out. Every question is in the game." :
+          filter === "approved" ? "No questions are in the game. Put some in from the Left out tab." :
+          "No questions yet. Use Add a question, or put back the built-in questions under Tools."));
         return;
       }
       shown.forEach((rec) => list.append(editing === rec.slot ? editor(rec) : card(rec)));
@@ -331,32 +316,29 @@
 
     function card(rec) {
       const approved = rec.status === "approved";
-      const when = new Date(rec.createdAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
       const total = rec.answers.reduce((t, a) => t + a.points, 0);
       const box = el("article", { className: "slot" + (approved ? " approved" : "") },
         el("div", { className: "slot-head" },
-          el("span", { className: "slot-no" }, `Slot ${rec.slot}`),
-          el("span", { className: "pill " + (approved ? "approved" : "pending") }, approved ? "Approved" : "Waiting"),
-          el("span", {}, `${rec.name}, ${rec.formClass}`),
-          el("span", {}, when),
-          rec.slot > data.settings.slotCount ? el("span", { className: "pill pending" }, "Beyond slot limit") : null),
+          el("span", { className: "slot-no" }, `Question ${rec.slot}`),
+          el("span", { className: "pill " + (approved ? "approved" : "pending") }, approved ? "In the game" : "Left out"),
+          el("span", { className: "pill source" }, rec.builtIn ? "Built-in" : "Added by you")),
         el("p", { className: "slot-q" }, rec.question),
         el("ol", { className: "slot-a" }, ...rec.answers.map((a, i) => el("li", {}, el("span", {}, `${i + 1}. ${a.text}`), el("b", {}, String(a.points))))),
         el("div", { className: "slot-total" }, `${rec.answers.length} answers, ${total} points in total`)
       );
       const actions = el("div", { className: "slot-actions" });
-      const approveBtn = el("button", { className: "btn btn-small" + (approved ? " btn-ghost dark" : ""), type: "button" }, approved ? "Move back to waiting" : "Approve");
+      const approveBtn = el("button", { className: "btn btn-small" + (approved ? " btn-ghost dark" : ""), type: "button" }, approved ? "Leave out" : "Put in the game");
       approveBtn.addEventListener("click", () => slotAction(rec.slot, approved ? "unapprove" : "approve"));
       const editBtn = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Edit");
       editBtn.addEventListener("click", () => { editing = rec.slot; render(); });
-      const delBtn = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Delete and free the slot");
+      const delBtn = el("button", { className: "btn btn-small btn-ghost dark", type: "button" }, "Delete");
       let armed = false, t;
       delBtn.addEventListener("click", () => {
         if (!armed) {
           armed = true;
           delBtn.className = "btn btn-small btn-danger";
           delBtn.textContent = "Click again to delete";
-          t = setTimeout(() => { armed = false; delBtn.className = "btn btn-small btn-ghost dark"; delBtn.textContent = "Delete and free the slot"; }, 4000);
+          t = setTimeout(() => { armed = false; delBtn.className = "btn btn-small btn-ghost dark"; delBtn.textContent = "Delete"; }, 4000);
           return;
         }
         clearTimeout(t);
@@ -370,8 +352,8 @@
     async function slotAction(slot, action, extra = {}) {
       try {
         await api("teacher/slot", { slot, action, ...extra });
-        const words = { approve: "approved", unapprove: "moved back to waiting", delete: "deleted. The slot is free again", update: "saved" };
-        note("list-msg", `Slot ${slot} ${words[action]}.`);
+        const words = { approve: "is in the game", unapprove: "is left out", delete: "deleted", update: "saved" };
+        note("list-msg", `Question ${slot} ${words[action]}.`);
         editing = null;
         await load(true);
         return true;
@@ -386,8 +368,8 @@
       const isNew = !rec;
       rec = rec || { question: "", answers: [] };
       const box = el("article", { className: "slot" },
-        el("div", { className: "slot-head" }, el("span", { className: "slot-no" }, isNew ? "New question" : `Editing slot ${rec.slot}`),
-          isNew ? el("span", {}, "It goes into the first empty slot, already approved.") : el("span", {}, `${rec.name}, ${rec.formClass}`)));
+        el("div", { className: "slot-head" }, el("span", { className: "slot-no" }, isNew ? "New question" : `Editing question ${rec.slot}`),
+          isNew ? el("span", {}, "It goes straight into the game. Points can add up to 100 at most.") : null));
       const q = el("textarea", { maxLength: 140, value: rec.question });
       box.append(el("label", { className: "field editor" }, "Question", q));
       const rows = el("div", { className: "ed-rows" });
@@ -419,13 +401,13 @@
         try {
           if (isNew) {
             const j = await api("teacher/slot", { action: "create", question: q.value, answers });
-            note("list-msg", `Added to slot ${j.slot}.`);
+            note("list-msg", `Added as question ${j.slot}.`);
             editing = null;
             $("#new-editor").textContent = "";
             await load(true);
           } else {
             await api("teacher/slot", { slot: rec.slot, action: "update", question: q.value, answers });
-            note("list-msg", `Slot ${rec.slot} saved.`);
+            note("list-msg", `Question ${rec.slot} saved.`);
             editing = null;
             await load(true);
           }
@@ -445,15 +427,14 @@
     });
 
     // ---------- tools ----------
-    $("#copy-link").addEventListener("click", async () => {
-      const link = location.origin + "/submit";
+    $("#restore").addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(link);
-        $("#copy-link").textContent = "Link copied";
-      } catch {
-        $("#copy-link").textContent = link;
+        const j = await api("teacher/restore", {});
+        note("restore-msg", j.added ? `Put back ${j.added} built-in question${j.added === 1 ? "" : "s"}.` : "Nothing was missing. Every built-in question is already here.");
+        await load(true);
+      } catch (err) {
+        note("restore-msg", err.message, "err");
       }
-      setTimeout(() => ($("#copy-link").textContent = "Copy student link"), 3000);
     });
 
     $("#print").addEventListener("click", () => {
@@ -461,12 +442,12 @@
       const sheet = $("#print-sheet");
       sheet.textContent = "";
       sheet.append(el("h1", {}, `${data.settings.title}: host answer sheet`),
-        el("p", {}, `${approved.length} approved questions, in slot order. Keep this away from the players.`));
+        el("p", {}, `${approved.length} questions in the game, in number order. Keep this away from the players.`));
       approved.forEach((r) =>
         sheet.append(el("div", { className: "pq" },
-          el("h3", {}, `Slot ${r.slot}. ${r.question}`),
+          el("h3", {}, `${r.slot}. ${r.question}`),
           el("ol", {}, ...r.answers.map((a) => el("li", {}, `${a.text}: ${a.points}`))))));
-      if (!approved.length) sheet.append(el("p", {}, "No approved questions yet."));
+      if (!approved.length) sheet.append(el("p", {}, "No questions are in the game."));
       window.print();
     });
 
@@ -482,7 +463,7 @@
       try {
         const j = await api("teacher/reset", { confirm: $("#reset-word").value.trim() });
         $("#reset-word").value = "";
-        note("reset-msg", `Deleted ${j.deleted} question${j.deleted === 1 ? "" : "s"}. Every slot is free.`);
+        note("reset-msg", `Deleted ${j.deleted} question${j.deleted === 1 ? "" : "s"} and loaded ${j.added} built-in question${j.added === 1 ? "" : "s"}.`);
         await load(true);
       } catch (err) {
         note("reset-msg", err.message, "err");
