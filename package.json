@@ -2,7 +2,7 @@
   "name": "bajan-showdown",
   "version": "1.0.0",
   "private": true,
-  "description": "Survey-style gameshow for a Bajan trivia class. Students write the questions; teacher approves; host runs the board.",
+  "description": "Survey-style gameshow about everyday life in Barbados, for 2–4 teams. Built-in question bank; host runs the board.",
   "type": "module",
   "dependencies": {
     "@netlify/blobs": "^11.1.7"

@@ -2,20 +2,21 @@
 // Storage: Netlify Blobs (built into Netlify, no setup or extra account).
 //
 // Keys in the "bajan-showdown" store:
-//   settings          { title, slotCount, open, classCode }
-//   slot-001 … 100    one student's question (first come, first served)
-//   student-<hash>    marks that a name + form class already has a slot
+//   settings          { title }
+//   seeded            written once, when the built-in questions are first loaded
+//   slot-001 … 200    one question each
 //
-// Slots are claimed with conditional writes (onlyIfNew), so two students
-// pressing submit at the same moment can never land in the same slot.
+// Every route that reveals answers needs the teacher password, so players
+// can't look the answers up before the game.
 
 import { getStore } from "@netlify/blobs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { BUILT_IN } from "../lib/questions.mjs";
 
 const STORE_NAME = "bajan-showdown";
-const MAX_SLOTS = 100;
-const DEFAULT_SETTINGS = { title: "Bajan Showdown", slotCount: 20, open: true, classCode: "" };
-const LIMITS = { name: 40, formClass: 12, question: 140, answer: 32, minAnswers: 4, maxAnswers: 8, maxTotal: 100 };
+const MAX_SLOTS = 200;
+const DEFAULT_SETTINGS = { title: "Bajan Showdown" };
+const LIMITS = { question: 140, answer: 32, minAnswers: 4, maxAnswers: 8, maxTotal: 100 };
 
 const store = () => getStore({ name: STORE_NAME, consistency: "strong" });
 
@@ -29,7 +30,6 @@ const fail = (status, error, extra = {}) => json({ error, ...extra }, status);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const slotKey = (n) => `slot-${String(n).padStart(3, "0")}`;
-const slotNum = (key) => parseInt(key.slice(5), 10);
 
 const cleanText = (v, max) =>
   String(v ?? "")
@@ -44,9 +44,6 @@ const squash = (v) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-
-const studentKeyFor = (name, formClass) =>
-  "student-" + createHash("sha256").update(`${squash(name)}|${squash(formClass)}`).digest("hex").slice(0, 32);
 
 const env = (k) => globalThis.Netlify?.env?.get?.(k) ?? process.env[k];
 
@@ -69,7 +66,7 @@ class HttpError extends Error {
 
 async function getSettings(s) {
   const saved = await s.get("settings", { type: "json" });
-  return { ...DEFAULT_SETTINGS, ...(saved || {}) };
+  return { title: saved?.title || DEFAULT_SETTINGS.title };
 }
 
 async function listSlotKeys(s) {
@@ -86,7 +83,7 @@ async function loadSlots(s) {
 // Validates a question + answers. Returns { question, answers } or throws.
 function validateQuestion(body) {
   const question = cleanText(body.question, LIMITS.question);
-  if (question.length < 8) throw new HttpError(400, "Write a full survey question, like “Name something you'd buy at Oistins.”");
+  if (question.length < 8) throw new HttpError(400, "Write a full survey question, like “Name something a Bajan house gets new for Christmas.”");
 
   const raw = Array.isArray(body.answers) ? body.answers.slice(0, 20) : [];
   const answers = raw
@@ -108,7 +105,7 @@ function validateQuestion(body) {
   }
   const total = answers.reduce((t, a) => t + a.points, 0);
   if (total > LIMITS.maxTotal)
-    throw new HttpError(400, `Your points add up to ${total}. They can only add up to ${LIMITS.maxTotal} (100 people surveyed).`);
+    throw new HttpError(400, `The points add up to ${total}. They can only add up to ${LIMITS.maxTotal} (100 people surveyed).`);
 
   answers.sort((a, b) => b.points - a.points);
   return { question, answers };
@@ -123,123 +120,79 @@ function teacherCheck(req) {
   return timingSafeEqual(a, b) ? "ok" : "bad";
 }
 
-// ---------- public routes ----------
-async function getStatus() {
-  const s = store();
-  const settings = await getSettings(s);
-  const taken = (await listSlotKeys(s)).map(slotNum).filter((n) => n <= settings.slotCount);
-  return json({
-    title: settings.title,
-    slotCount: settings.slotCount,
-    taken,
-    left: Math.max(0, settings.slotCount - taken.length),
-    open: settings.open,
-    needsCode: Boolean(settings.classCode),
-  });
+// ---------- built-in questions ----------
+// Adds every built-in question that isn't in the store yet (matched by its
+// bank id, so an edited built-in question is never added twice). Each one
+// takes the lowest free number.
+async function addMissingBuiltIns(s) {
+  const existing = await loadSlots(s);
+  const have = new Set(existing.map((r) => r.bankId).filter(Boolean));
+  const taken = new Set(existing.map((r) => r.slot));
+  const now = Date.now();
+  let n = 1;
+  let added = 0;
+  for (const q of BUILT_IN) {
+    if (have.has(q.id)) continue;
+    const { question, answers } = validateQuestion(q);
+    for (;;) {
+      while (taken.has(n)) n++;
+      if (n > MAX_SLOTS) return added;
+      taken.add(n);
+      const rec = { slot: n, bankId: q.id, question, answers, status: "approved", createdAt: now, updatedAt: now };
+      const w = await s.setJSON(slotKey(n), rec, { onlyIfNew: true });
+      if (w.modified) { added++; break; }
+      // Another request took this number a moment ago: try the next one.
+    }
+  }
+  return added;
 }
 
-async function submit(req) {
-  const body = await readBody(req);
-  const s = store();
-  const settings = await getSettings(s);
+// The first time the site is used, load the built-in questions.
+async function ensureSeeded(s) {
+  if (await s.get("seeded")) return;
+  const r = await s.setJSON("seeded", { at: Date.now() }, { onlyIfNew: true });
+  if (r.modified) await addMissingBuiltIns(s);
+}
 
-  if (!settings.open) return fail(403, "Submissions are closed right now. Ask your teacher when they'll open.");
-  if (settings.classCode && squash(body.code) !== squash(settings.classCode))
-    return fail(403, "That class code isn't right. Check the code your teacher gave you.", { field: "code" });
-
-  const name = cleanText(body.name, LIMITS.name);
-  const formClass = cleanText(body.formClass, LIMITS.formClass);
-  if (name.length < 2) return fail(400, "Type your name so your teacher knows whose question it is.", { field: "name" });
-  if (!formClass) return fail(400, "Type your form class, like 3B.", { field: "formClass" });
-
-  const { question, answers } = validateQuestion(body);
-  const studentKey = studentKeyFor(name, formClass);
-  const now = Date.now();
-
-  // Step 1: one slot per student. Claim the student marker atomically.
-  let claimed = false;
-  for (let attempt = 0; attempt < 2 && !claimed; attempt++) {
-    const r = await s.setJSON(studentKey, { name, formClass, slot: null, at: now }, { onlyIfNew: true });
-    if (r.modified) {
-      claimed = true;
-      break;
-    }
-    const existing = await s.get(studentKey, { type: "json" });
-    // A marker with no slot that's over a minute old came from a request that
-    // crashed halfway. Clear it and try again; otherwise the student already has a slot.
-    if (existing && existing.slot == null && now - (existing.at || 0) > 60000) {
-      await s.delete(studentKey);
-      continue;
-    }
-    if (existing && existing.slot == null)
-      return fail(409, "Your question is still being saved. Wait a few seconds, then refresh.");
-    return fail(409, `${existing?.name || name} in ${existing?.formClass || formClass} already has slot ${existing?.slot}. It's one question each.`, {
-      slot: existing?.slot,
-    });
-  }
-
-  // Step 2: first come, first served. Take the lowest free slot.
-  try {
-    const takenKeys = new Set(await listSlotKeys(s));
-    const record = { name, formClass, studentKey, question, answers, status: "pending", createdAt: now, updatedAt: now };
-    for (let n = 1; n <= settings.slotCount; n++) {
-      const key = slotKey(n);
-      if (takenKeys.has(key)) continue;
-      const r = await s.setJSON(key, { slot: n, ...record }, { onlyIfNew: true });
-      if (r.modified) {
-        await s.setJSON(studentKey, { name, formClass, slot: n, at: now });
-        return json({ ok: true, slot: n, slotCount: settings.slotCount });
-      }
-      // Someone else got this slot a split second earlier: try the next one.
-    }
-    await s.delete(studentKey);
-    return fail(409, "All the slots are full. Ask your teacher if they can add more.", { full: true });
-  } catch (err) {
-    await s.delete(studentKey).catch(() => {});
-    throw err;
-  }
+// ---------- public route ----------
+async function getStatus() {
+  const settings = await getSettings(store());
+  return json({ title: settings.title });
 }
 
 // ---------- teacher routes ----------
 async function getGame() {
   const s = store();
-  const settings = await getSettings(s);
-  const questions = (await loadSlots(s))
+  await ensureSeeded(s);
+  const [settings, slots] = await Promise.all([getSettings(s), loadSlots(s)]);
+  const questions = slots
     .filter((r) => r.status === "approved")
-    .map((r) => ({ slot: r.slot, question: r.question, answers: r.answers, author: r.name, formClass: r.formClass }));
+    .map((r) => ({ slot: r.slot, question: r.question, answers: r.answers }));
   return json({ title: settings.title, questions });
 }
 
 async function getTeacherSlots() {
   const s = store();
+  await ensureSeeded(s);
   const [settings, slots] = await Promise.all([getSettings(s), loadSlots(s)]);
   return json({
     settings,
-    slots: slots.map(({ studentKey, ...rest }) => rest),
+    builtInCount: BUILT_IN.length,
+    slots: slots.map(({ slot, bankId, question, answers, status, createdAt, updatedAt }) => ({
+      slot, builtIn: Boolean(bankId), question, answers, status, createdAt, updatedAt,
+    })),
   });
 }
 
 async function saveSettings(req) {
   const body = await readBody(req);
   const s = store();
-  const current = await getSettings(s);
-  const next = { ...current };
-
+  const next = await getSettings(s);
   if ("title" in body) {
     const t = cleanText(body.title, 40);
     if (t.length < 2) return fail(400, "Give the game a title.");
     next.title = t;
   }
-  if ("slotCount" in body) {
-    const n = Number(body.slotCount);
-    if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return fail(400, `Slots must be a whole number from 1 to ${MAX_SLOTS}.`);
-    const highest = Math.max(0, ...(await listSlotKeys(s)).map(slotNum));
-    if (n < highest) return fail(400, `Slot ${highest} is already filled. Delete it first, or keep at least ${highest} slots.`);
-    next.slotCount = n;
-  }
-  if ("open" in body) next.open = Boolean(body.open);
-  if ("classCode" in body) next.classCode = cleanText(body.classCode, 20);
-
   await s.setJSON("settings", next);
   return json({ ok: true, settings: next });
 }
@@ -251,23 +204,22 @@ async function slotAction(req) {
 
   if (action === "create") {
     const { question, answers } = validateQuestion(body);
-    const settings = await getSettings(s);
     const takenKeys = new Set(await listSlotKeys(s));
     const now = Date.now();
-    for (let n = 1; n <= settings.slotCount; n++) {
+    for (let n = 1; n <= MAX_SLOTS; n++) {
       if (takenKeys.has(slotKey(n))) continue;
-      const rec = { slot: n, name: cleanText(body.name, LIMITS.name) || "Teacher", formClass: cleanText(body.formClass, LIMITS.formClass) || "Staff", studentKey: null, question, answers, status: "approved", createdAt: now, updatedAt: now };
+      const rec = { slot: n, bankId: null, question, answers, status: "approved", createdAt: now, updatedAt: now };
       const r = await s.setJSON(slotKey(n), rec, { onlyIfNew: true });
       if (r.modified) return json({ ok: true, slot: n });
     }
-    return fail(409, "Every slot is full. Add more slots in Settings first.");
+    return fail(409, `There's room for ${MAX_SLOTS} questions. Delete some first.`);
   }
 
   const n = Number(body.slot);
-  if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return fail(400, "That slot number isn't valid.");
+  if (!Number.isInteger(n) || n < 1 || n > MAX_SLOTS) return fail(400, "That question number isn't valid.");
   const key = slotKey(n);
   const rec = await s.get(key, { type: "json" });
-  if (!rec) return fail(404, `Slot ${n} is empty. Refresh to see the latest list.`);
+  if (!rec) return fail(404, `Question ${n} isn't there any more. Refresh to see the latest list.`);
 
   if (action === "approve" || action === "unapprove") {
     rec.status = action === "approve" ? "approved" : "pending";
@@ -277,20 +229,24 @@ async function slotAction(req) {
     rec.answers = answers;
   } else if (action === "delete") {
     await s.delete(key);
-    if (rec.studentKey) {
-      const marker = await s.get(rec.studentKey, { type: "json" });
-      if (marker && marker.slot === n) await s.delete(rec.studentKey);
-    }
     return json({ ok: true, deleted: n });
   } else {
     return fail(400, "Unknown action.");
   }
   rec.updatedAt = Date.now();
   await s.setJSON(key, rec);
-  const { studentKey, ...clean } = rec;
-  return json({ ok: true, slot: clean });
+  return json({ ok: true });
 }
 
+async function restoreBuiltIns() {
+  const s = store();
+  await s.setJSON("seeded", { at: Date.now() });
+  const added = await addMissingBuiltIns(s);
+  return json({ ok: true, added });
+}
+
+// Deletes every question (and anything left over from the old student
+// form), then loads the built-in questions again.
 async function resetAll(req) {
   const body = await readBody(req);
   if (body.confirm !== "RESET") return fail(400, "Type RESET to confirm.");
@@ -298,7 +254,9 @@ async function resetAll(req) {
   const { blobs } = await s.list();
   const doomed = blobs.map((b) => b.key).filter((k) => k.startsWith("slot-") || k.startsWith("student-"));
   await Promise.all(doomed.map((k) => s.delete(k)));
-  return json({ ok: true, deleted: doomed.filter((k) => k.startsWith("slot-")).length });
+  await s.setJSON("seeded", { at: Date.now() });
+  const added = await addMissingBuiltIns(s);
+  return json({ ok: true, deleted: doomed.filter((k) => k.startsWith("slot-")).length, added });
 }
 
 // ---------- router ----------
@@ -309,7 +267,6 @@ export default async (req) => {
 
   try {
     if (path === "status" && m === "GET") return await getStatus();
-    if (path === "submit" && m === "POST") return await submit(req);
 
     if (path === "game" || path.startsWith("teacher/")) {
       const auth = teacherCheck(req);
@@ -324,6 +281,7 @@ export default async (req) => {
       if (path === "teacher/slots" && m === "GET") return await getTeacherSlots();
       if (path === "teacher/settings" && m === "POST") return await saveSettings(req);
       if (path === "teacher/slot" && m === "POST") return await slotAction(req);
+      if (path === "teacher/restore" && m === "POST") return await restoreBuiltIns();
       if (path === "teacher/reset" && m === "POST") return await resetAll(req);
     }
     return fail(404, "Not found.");
