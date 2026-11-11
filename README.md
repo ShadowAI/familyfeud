@@ -8,7 +8,9 @@ A survey-style gameshow about everyday life in Barbados, for 2–4 teams. It com
 | Teacher page | `/teacher` | Teacher: edit, add or switch off questions |
 | Host remote | `/host` | Opened from the board's **More** menu; shows the answers to the host |
 
-Questions are saved in **Netlify Blobs**, the storage built into Netlify. There's no database account to create and nothing extra to pay for at classroom scale. The answers are only sent to someone with the teacher password, so players can't look them up.
+Questions are saved in **Netlify Blobs**, the storage built into Netlify. There's no database account to create and nothing extra to pay for at classroom scale.
+
+**Teacher password (optional).** With no password set, anyone with the link can host the game, see the answers and change the questions on the teacher page. To lock the answers and the teacher page, set a password (step 4 below). Remove it again to unlock them.
 
 ---
 
@@ -21,7 +23,7 @@ Netlify's drag-and-drop deploy **doesn't run the server code** this site needs, 
 1. Unzip this folder.
 2. On GitHub, create a new repository (it can be private). Choose **uploading an existing file** and drag in everything *inside* the unzipped folder: `netlify/`, `public/`, `netlify.toml`, `package.json`, `package-lock.json` and this README. Commit.
 3. In Netlify, choose **Add new project → Import an existing project → GitHub** and pick the repository. Leave the build settings as they are (`netlify.toml` already sets them) and deploy.
-4. **Set the teacher password.** In the project's settings, open **Environment variables**, add one called `TEACHER_PASSWORD` and give it a password only you know. Then open **Deploys** and choose **Trigger deploy** so the site picks it up.
+4. **Optional: set a teacher password.** In the project's settings, open **Environment variables**, add one called `TEACHER_PASSWORD` and give it a password only you know. Then open **Deploys** and choose **Trigger deploy** so the site picks it up. To remove the password later, delete the variable and trigger a deploy again.
 
 ### Option B: Netlify CLI (if you have Node.js installed)
 
@@ -30,7 +32,7 @@ cd bajan-showdown
 npm install
 npx netlify-cli login
 npx netlify-cli deploy --prod      # first time: choose to create a new project
-npx netlify-cli env:set TEACHER_PASSWORD "your-password"
+npx netlify-cli env:set TEACHER_PASSWORD "your-password"   # optional
 npx netlify-cli deploy --prod      # deploy again so the password takes effect
 ```
 
@@ -53,7 +55,7 @@ To change the built-in questions themselves, edit `netlify/lib/questions.mjs`.
 
 ## 3. Run the show
 
-1. On the projector, open the site and press **Host the game**, then enter the teacher password.
+1. On the projector, open the site and press **Host the game**. If you've set a teacher password, enter it.
 2. Choose **2, 3 or 4 teams**. For each team, set a name, **1–4 players** and, if you like, the players' names. Then choose the number of rounds and a target (300 by default), and press **Start the show**.
 3. Each round works like this:
    - **Four-way face-off:** the next player from every team comes up. Their names show under each team's score and change every round. Read the question. A wrong buzz-in gets **Buzz** (Z), which shows one X but doesn't count as a strike.
@@ -69,7 +71,7 @@ To change the built-in questions themselves, edit `netlify/lib/questions.mjs`.
 
 **Keyboard:** 1–8 reveal, X strike, Z buzz, R reveal rest, N next, U undo, Q show or hide question, H hide controls, F full screen, M sound on or off.
 
-**Practise any time:** press **Host the game**, then **Practise with sample questions**. A few practice questions load without the password.
+**Practise any time:** with a teacher password set, press **Host the game**, then **Practise with sample questions** to load a few practice questions without the password.
 
 ---
 
