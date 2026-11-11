@@ -129,6 +129,7 @@
     </form>
 
     <div id="app" hidden>
+      <p class="panel muted" id="open-note" hidden>No teacher password is set, so anyone with this page's link can see and change the questions. To lock it, add an environment variable called TEACHER_PASSWORD in Netlify, then redeploy.</p>
       <div class="stats" aria-live="polite">
         <div class="stat gold"><b id="n-approved">0</b><span>In the game</span></div>
         <div class="stat"><b id="n-pending">0</b><span>Left out</span></div>
@@ -470,7 +471,18 @@
       }
     });
 
-    if (pw) start(); else $("#pw").focus();
+    // With no teacher password set on the server, skip the sign-in.
+    fetch("/api/status", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : {}))
+      .catch(() => ({}))
+      .then((st) => {
+        if (st.needsPassword === false) {
+          $("#signout").hidden = true;
+          $("#open-note").hidden = false;
+          start();
+        } else if (pw) start();
+        else $("#pw").focus();
+      });
   })();
   </script>
 </body>

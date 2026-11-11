@@ -39,6 +39,7 @@
   };
 
   let title = "Bajan Showdown";
+  let needsPassword = true; // updated from the server when the page loads
   let pool = [];       // questions loaded from the server (or samples)
   let isDemo = false;
   let G = null;        // the game in progress
@@ -65,7 +66,10 @@
   async function loadTitle() {
     try {
       const r = await fetch("/api/status", { cache: "no-store" });
-      if (r.ok) setTitle((await r.json()).title);
+      if (!r.ok) return;
+      const st = await r.json();
+      setTitle(st.title);
+      needsPassword = st.needsPassword !== false;
     } catch {}
   }
 
@@ -102,7 +106,7 @@
   $("#host-btn").addEventListener("click", () => {
     S.unlock();
     const pw = sess.get(PW_KEY);
-    if (pw) loadGame(pw); else openLogin();
+    if (pw || !needsPassword) loadGame(pw || ""); else openLogin();
   });
   $("#login-form").addEventListener("submit", (e) => {
     e.preventDefault();

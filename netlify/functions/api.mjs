@@ -6,8 +6,9 @@
 //   seeded            written once, when the built-in questions are first loaded
 //   slot-001 … 200    one question each
 //
-// Every route that reveals answers needs the teacher password, so players
-// can't look the answers up before the game.
+// The teacher password is optional. If TEACHER_PASSWORD is set in Netlify,
+// every route that reveals answers or changes questions needs it. If it isn't
+// set, anyone with the link can host and use the teacher page.
 
 import { getStore } from "@netlify/blobs";
 import { createHash, timingSafeEqual } from "node:crypto";
@@ -111,9 +112,11 @@ function validateQuestion(body) {
   return { question, answers };
 }
 
+const passwordRequired = () => Boolean(env("TEACHER_PASSWORD"));
+
 function teacherCheck(req) {
   const real = env("TEACHER_PASSWORD");
-  if (!real) return "unset";
+  if (!real) return "ok";
   const given = req.headers.get("x-teacher-password") || "";
   const a = createHash("sha256").update(given).digest();
   const b = createHash("sha256").update(String(real)).digest();
@@ -157,7 +160,7 @@ async function ensureSeeded(s) {
 // ---------- public route ----------
 async function getStatus() {
   const settings = await getSettings(store());
-  return json({ title: settings.title });
+  return json({ title: settings.title, needsPassword: passwordRequired() });
 }
 
 // ---------- teacher routes ----------
@@ -269,10 +272,7 @@ export default async (req) => {
     if (path === "status" && m === "GET") return await getStatus();
 
     if (path === "game" || path.startsWith("teacher/")) {
-      const auth = teacherCheck(req);
-      if (auth === "unset")
-        return fail(503, "The teacher password hasn't been set. In Netlify, add an environment variable called TEACHER_PASSWORD, then redeploy.");
-      if (auth === "bad") {
+      if (teacherCheck(req) === "bad") {
         await sleep(800); // slows down password guessing
         return fail(401, "That password isn't right.");
       }
